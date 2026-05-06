@@ -7,7 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.taskcolab.app.feature.auth.LoginScreen
-import com.taskcolab.app.feature.auth.RegisterPlaceholderScreen
+import com.taskcolab.app.feature.auth.RegisterScreen
 import com.taskcolab.app.feature.boards.BoardsPlaceholderScreen
 import com.taskcolab.app.feature.profile.ProfilePlaceholderScreen
 import com.taskcolab.app.feature.reports.ReportsPlaceholderScreen
@@ -33,16 +33,28 @@ fun TaskColabNavHost(
         }
         composable(NavRoutes.LOGIN) {
             LoginScreen(
-                onBack = { navController.popBackStack() },
                 onLoginSuccess = {
                     navController.navigate(NavRoutes.BOARDS) {
                         popUpTo(NavRoutes.WELCOME) { inclusive = true }
                     }
-                }
+                },
+                onNavigateToRegister = { navController.navigate(NavRoutes.REGISTER) },
+                onForgotPassword = { }
             )
         }
         composable(NavRoutes.REGISTER) {
-            RegisterPlaceholderScreen(onBack = { navController.popBackStack() })
+            RegisterScreen(
+                onRegisterSuccess = {
+                    navController.navigate(NavRoutes.BOARDS) {
+                        popUpTo(NavRoutes.WELCOME) { inclusive = true }
+                    }
+                },
+                onNavigateToLogin = {
+                    navController.navigate(NavRoutes.LOGIN) {
+                        popUpTo(NavRoutes.REGISTER) { inclusive = true }
+                    }
+                }
+            )
         }
         composable(NavRoutes.BOARDS) { BoardsPlaceholderScreen() }
         composable(NavRoutes.TASKS) { TasksPlaceholderScreen() }
