@@ -7,5 +7,6 @@ data class TaskCard(
     val status: TaskStatus,
     val priority: TaskPriority,
     val dueDate: String,
-    val assignedUser: User?
+    val assignedUser: User? = null,
+    val assignedUsers: List<User> = assignedUser?.let { listOf(it) } ?: emptyList()
 )

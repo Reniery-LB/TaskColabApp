@@ -1,6 +1,7 @@
 package com.taskcolab.app.feature.boards
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +37,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -43,12 +48,15 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -60,10 +68,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.taskcolab.app.R
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
@@ -75,6 +85,10 @@ import com.taskcolab.app.domain.model.TaskPriority
 import com.taskcolab.app.domain.model.TaskStatus
 import com.taskcolab.app.domain.model.User
 import com.taskcolab.app.domain.model.UserRole
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @Composable
 fun BoardsPlaceholderScreen(
@@ -88,14 +102,13 @@ fun BoardsPlaceholderScreen(
         listOf(
             User(1, "Reniery Lucero Beltran", "reniery@taskcolab.com", UserRole.ADMIN, true),
             User(2, "Keyra Grijalva Ochoa", "keyra@taskcolab.com", UserRole.USER, true),
-            User(3, "Zahir Diaz Barrera", "zahir@taskcolab.com", UserRole.USER, true)
         )
     }
     val cards = remember {
         mutableStateListOf(
             TaskCard(
                 id = 1,
-                title = "Disenar Mockups Figma",
+                title = "Diseñar Mockups Figma",
                 description = "Crear la version movil de todos los modulos del sistema.",
                 status = TaskStatus.PENDING,
                 priority = TaskPriority.HIGH,
@@ -128,49 +141,61 @@ fun BoardsPlaceholderScreen(
                 onProfile = onNavigateToProfile
             )
         },
-        floatingActionButton = {
+        floatingActionButton = {}
+    ) { innerPadding ->
+        val visibleCards = cards.filter { it.status == selectedStatus }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 18.dp),
+                contentPadding = PaddingValues(top = 20.dp, bottom = 104.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(visibleCards, key = { it.id }) { card ->
+                    BoardTaskCard(
+                        card = card,
+                        onMove = { cardToMove = card },
+                        onDelete = { cards.remove(card) }
+                    )
+                }
+
+                if (visibleCards.isEmpty()) {
+                    item {
+                        EmptyBoardState(status = selectedStatus)
+                    }
+                }
+            }
+
             FloatingActionButton(
                 onClick = { showCreateDialog = true },
                 containerColor = TaskColabBlue,
                 contentColor = TaskColabWhite,
-                shape = CircleShape
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 30.dp, bottom = 18.dp)
             ) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Anadir tarjeta")
-            }
-        }
-    ) { innerPadding ->
-        val visibleCards = cards.filter { it.status == selectedStatus }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 36.dp),
-            contentPadding = PaddingValues(top = 20.dp, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            items(visibleCards, key = { it.id }) { card ->
-                BoardTaskCard(
-                    card = card,
-                    onMove = { cardToMove = card },
-                    onDelete = { cards.remove(card) }
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Añadir tarjeta",
+                    modifier = Modifier.size(34.dp)
                 )
-            }
-
-            if (visibleCards.isEmpty()) {
-                item {
-                    EmptyBoardState(status = selectedStatus)
-                }
             }
         }
     }
 
     if (showCreateDialog) {
-        CreateCardDialog(
+        CreateCardSheet(
             users = users,
             initialStatus = selectedStatus,
             onDismiss = { showCreateDialog = false },
-            onCreate = { title, description, status, priority, dueDate, user ->
+            onCreate = { title, description, status, priority, dueDate, selectedUsers ->
                 cards.add(
                     TaskCard(
                         id = nextId++,
@@ -179,7 +204,8 @@ fun BoardsPlaceholderScreen(
                         status = status,
                         priority = priority,
                         dueDate = dueDate,
-                        assignedUser = user
+                        assignedUser = selectedUsers.firstOrNull(),
+                        assignedUsers = selectedUsers
                     )
                 )
                 selectedStatus = status
@@ -218,7 +244,7 @@ private fun BoardsHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(TaskColabBlue)
-                .padding(start = 48.dp, top = 46.dp, end = 22.dp, bottom = 26.dp),
+                .padding(start = 18.dp, top = 46.dp, end = 22.dp, bottom = 26.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -247,7 +273,7 @@ private fun BoardsHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(TaskColabWhite)
-                .padding(horizontal = 36.dp, vertical = 18.dp),
+                .padding(horizontal = 24.dp, vertical = 18.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             StatusTab(
@@ -312,30 +338,29 @@ private fun BoardTaskCard(
         shape = RoundedCornerShape(8.dp),
         color = TaskColabWhite
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PriorityBadge(priority = card.priority)
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
                     text = card.dueDate,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = Color(0xFF626262),
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.Filled.CalendarMonth,
+                Spacer(modifier = Modifier.width(8.dp))
+                Image(
+                    painter = painterResource(id = R.drawable.calendario),
                     contentDescription = null,
-                    tint = TaskColabBlue,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = card.title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineSmall,
                 color = Color.Black,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -343,20 +368,20 @@ private fun BoardTaskCard(
             )
             Text(
                 text = card.description,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFF666666),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             ThinLine()
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "Asignado:",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = Color(0xFF666666),
                     fontWeight = FontWeight.Bold
                 )
@@ -367,8 +392,11 @@ private fun BoardTaskCard(
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = card.assignedUser?.fullName.orEmpty(),
-                        style = MaterialTheme.typography.labelMedium,
+                        text = card.assignedUsers
+                            .takeIf { it.isNotEmpty() }
+                            ?.joinToString { it.fullName }
+                            ?: "Sin asignar",
+                        style = MaterialTheme.typography.labelLarge,
                         color = TaskColabBlue,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -376,30 +404,23 @@ private fun BoardTaskCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             ThinLine()
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = onMove,
                     shape = RoundedCornerShape(5.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TaskColabBlue),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                    modifier = Modifier.height(32.dp)
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp),
+                    modifier = Modifier.height(40.dp)
                 ) {
                     Text(
                         text = "Mover",
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = TaskColabWhite,
                         fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = TaskColabWhite,
-                        modifier = Modifier.size(22.dp)
                     )
                 }
 
@@ -407,16 +428,20 @@ private fun BoardTaskCard(
 
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(Color(0xFFFFDADA), RoundedCornerShape(4.dp))
+                    modifier = Modifier.size(54.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Delete,
-                        contentDescription = "Eliminar tarjeta",
-                        tint = Color(0xFFE02020),
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(Color(0xFFFFDADA), RoundedCornerShape(4.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.btn_basura),
+                            contentDescription = "Eliminar tarjeta",
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
                 }
             }
         }
@@ -434,7 +459,7 @@ private fun PriorityBadge(priority: TaskPriority) {
     Box(
         modifier = Modifier
             .background(backgroundColor, RoundedCornerShape(3.dp))
-            .padding(horizontal = 6.dp, vertical = 5.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Text(
             text = label,
@@ -479,113 +504,377 @@ private fun EmptyBoardState(status: TaskStatus) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CreateCardDialog(
+private fun CreateCardSheet(
     users: List<User>,
     initialStatus: TaskStatus,
     onDismiss: () -> Unit,
-    onCreate: (String, String, TaskStatus, TaskPriority, String, User?) -> Unit
+    onCreate: (String, String, TaskStatus, TaskPriority, String, List<User>) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf(initialStatus) }
     var selectedPriority by remember { mutableStateOf(TaskPriority.HIGH) }
-    var selectedUser by remember { mutableStateOf(users.firstOrNull()) }
+    val selectedUserIds = remember { mutableStateListOf<Int>() }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val titleError = title.isBlank()
     val descriptionError = description.isBlank()
-    val dueDateError = dueDate.isBlank()
-    val canCreate = !titleError && !descriptionError && !dueDateError && selectedUser != null
+    val canCreate = !titleError && !descriptionError && dueDate.length == 8
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(text = "Anadir tarjeta", fontWeight = FontWeight.Bold) },
-        text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item {
-                    BoardTextField(
-                        value = title,
-                        onValueChange = { title = it.take(60) },
-                        label = "Titulo de la tarea",
-                        isError = titleError
-                    )
-                }
-                item {
-                    BoardTextField(
-                        value = description,
-                        onValueChange = { description = it.take(160) },
-                        label = "Descripcion detallada",
-                        isError = descriptionError,
-                        minLines = 2
-                    )
-                }
-                item {
-                    BoardTextField(
-                        value = dueDate,
-                        onValueChange = { dueDate = it.take(10) },
-                        label = "Fecha limite",
-                        placeholder = "dd-mm-aa",
-                        isError = dueDateError
-                    )
-                }
-                item {
-                    DialogChoiceSection(title = "Estado") {
-                        TaskStatus.entries.forEach { status ->
-                            ChoicePill(
-                                label = status.boardLabel(),
-                                selected = selectedStatus == status,
-                                onClick = { selectedStatus = status }
-                            )
+        sheetState = sheetState,
+        containerColor = TaskColabWhite,
+        shape = RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 24.dp, bottom = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Añadir Tarjeta",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold
+            )
+
+            LabeledBoardField(
+                label = "TITULO DE LA TAREA",
+                value = title,
+                onValueChange = { title = it.take(60) },
+                placeholder = "Ej: Diseñar Base de Datos",
+                singleLine = true
+            )
+
+            LabeledBoardField(
+                label = "DESCRIPCIÓN DETALLADA",
+                value = description,
+                onValueChange = { description = it.take(160) },
+                placeholder = "Explica los puntos clave....",
+                minLines = 2
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                ExpandableBoardSelector(
+                    label = "ESTADO",
+                    value = selectedStatus.boardLabel(),
+                    options = TaskStatus.entries,
+                    optionLabel = { it.boardLabel() },
+                    modifier = Modifier.weight(1f),
+                    onSelected = { selectedStatus = it }
+                )
+                ExpandableBoardSelector(
+                    label = "PRIORIDAD",
+                    value = selectedPriority.priorityLabel(),
+                    options = TaskPriority.entries,
+                    optionLabel = { it.priorityLabel() },
+                    modifier = Modifier.weight(1f),
+                    onSelected = { selectedPriority = it }
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "ASIGNAR",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color(0xFF707070),
+                    fontWeight = FontWeight.Bold
+                )
+                users.forEach { user ->
+                    UserChoiceRow(
+                        name = user.fullName,
+                        selected = user.id in selectedUserIds,
+                        onClick = {
+                            if (user.id in selectedUserIds) {
+                                selectedUserIds.remove(user.id)
+                            } else {
+                                selectedUserIds.add(user.id)
+                            }
                         }
-                    }
-                }
-                item {
-                    DialogChoiceSection(title = "Prioridad") {
-                        TaskPriority.entries.forEach { priority ->
-                            ChoicePill(
-                                label = priority.priorityLabel(),
-                                selected = selectedPriority == priority,
-                                onClick = { selectedPriority = priority }
-                            )
-                        }
-                    }
-                }
-                item {
-                    DialogChoiceSection(title = "Asignar a") {
-                        users.forEach { user ->
-                            ChoicePill(
-                                label = user.fullName,
-                                selected = selectedUser?.id == user.id,
-                                onClick = { selectedUser = user }
-                            )
-                        }
-                    }
+                    )
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
+
+            LabeledBoardField(
+                label = "FECHA LIMITE",
+                value = dueDate,
+                onValueChange = { dueDate = formatShortDate(it) },
+                placeholder = "dd/mm/aaaa",
+                singleLine = true,
+                readOnly = true,
+                onClick = { showDatePicker = true },
+                trailingIcon = {
+                    Image(
+                        painter = painterResource(id = R.drawable.calendario),
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            )
+
+            SheetActionButtons(
+                cancelText = "Cancelar",
+                saveText = "Crear",
+                canSave = canCreate,
+                onCancel = onDismiss,
+                onSave = {
                     onCreate(
                         title.trim(),
                         description.trim(),
                         selectedStatus,
                         selectedPriority,
                         dueDate.trim(),
-                        selectedUser
+                        users.filter { it.id in selectedUserIds }
+                    )
+                }
+            )
+        }
+    }
+
+    if (showDatePicker) {
+        BoardDatePickerDialog(
+            onDismiss = { showDatePicker = false },
+            onDateSelected = {
+                dueDate = it
+                showDatePicker = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun LabeledBoardField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = false,
+    minLines: Int = 1,
+    readOnly: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = Color(0xFF707070),
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Box {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = {
+                    Text(
+                        text = placeholder,
+                        color = Color(0xFF9C9C9C),
+                        fontWeight = FontWeight.Bold
                     )
                 },
-                enabled = canCreate,
-                colors = ButtonDefaults.buttonColors(containerColor = TaskColabBlue)
-            ) {
-                Text(text = "Guardar")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Cancelar")
+                trailingIcon = trailingIcon,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, RoundedCornerShape(8.dp), ambientColor = Color.Black.copy(alpha = 0.16f)),
+                shape = RoundedCornerShape(8.dp),
+                readOnly = readOnly,
+                singleLine = singleLine,
+                minLines = minLines,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black,
+                    focusedBorderColor = TaskColabBlue,
+                    unfocusedBorderColor = TaskColabBlue,
+                    cursorColor = TaskColabBlue,
+                    focusedContainerColor = TaskColabWhite,
+                    unfocusedContainerColor = TaskColabWhite
+                )
+            )
+            if (onClick != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .clickable(onClick = onClick)
+                )
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun SheetActionButtons(
+    cancelText: String,
+    saveText: String,
+    canSave: Boolean,
+    onCancel: () -> Unit,
+    onSave: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Button(
+            onClick = onCancel,
+            colors = ButtonDefaults.buttonColors(containerColor = TaskColabWhite),
+            border = BorderStroke(1.dp, TaskColabBlue),
+            shape = RoundedCornerShape(7.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(46.dp)
+        ) {
+            Text(
+                text = cancelText,
+                style = MaterialTheme.typography.titleMedium,
+                color = TaskColabBlue,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Button(
+            onClick = onSave,
+            enabled = canSave,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TaskColabBlue,
+                contentColor = TaskColabWhite,
+                disabledContainerColor = Color(0xFFE0E0E0),
+                disabledContentColor = Color(0xFF8A8A8A)
+            ),
+            shape = RoundedCornerShape(7.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(46.dp)
+        ) {
+            Text(
+                text = saveText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun <T> ExpandableBoardSelector(
+    label: String,
+    value: String,
+    options: List<T>,
+    optionLabel: (T) -> String,
+    modifier: Modifier = Modifier,
+    onSelected: (T) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = Color(0xFF707070),
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .border(BorderStroke(1.dp, TaskColabBlue), RoundedCornerShape(8.dp))
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Image(
+                painter = painterResource(
+                    id = if (expanded) R.drawable.icn_flecha_arriba else R.drawable.icn_flecha_abajo
+                ),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(Color.Black),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .border(BorderStroke(1.dp, TaskColabBlue), RoundedCornerShape(8.dp))
+                    .background(TaskColabWhite, RoundedCornerShape(8.dp))
+            ) {
+                options.forEach { option ->
+                    Text(
+                        text = optionLabel(option),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSelected(option)
+                                expanded = false
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserChoiceRow(
+    name: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .background(if (selected) Color(0xFFE7E7E7) else TaskColabWhite, RoundedCornerShape(8.dp))
+            .border(BorderStroke(1.dp, TaskColabBlue), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = selected,
+            onCheckedChange = { onClick() },
+            modifier = Modifier.size(28.dp),
+            colors = CheckboxDefaults.colors(
+                checkedColor = TaskColabBlue,
+                uncheckedColor = Color(0xFF8E8585),
+                checkmarkColor = TaskColabWhite
+            )
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.Black,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -671,28 +960,28 @@ private fun MoveCardDialog(
     onMoveTo: (TaskStatus) -> Unit
 ) {
     AlertDialog(
+        modifier = Modifier.border(BorderStroke(2.dp, TaskColabBlue), RoundedCornerShape(28.dp)),
         onDismissRequest = onDismiss,
-        title = { Text(text = "Mover tarjeta", fontWeight = FontWeight.Bold) },
+        containerColor = TaskColabWhite,
+        shape = RoundedCornerShape(28.dp),
+        title = { Text(text = "Mover Tarjeta", color = Color.Black, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = card.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TaskColabMuted
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(26.dp)) {
                 TaskStatus.entries.forEach { status ->
+                    val (backgroundColor, textColor, borderColor) = status.moveOptionColors(card.status)
                     Surface(
                         modifier = Modifier
+                            .height(60.dp)
                             .fillMaxWidth()
                             .clickable(enabled = status != card.status) { onMoveTo(status) },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (status == card.status) Color(0xFFE7E7E7) else TaskColabWhite,
-                        border = BorderStroke(1.dp, if (status == card.status) TaskColabLine else TaskColabBlue)
+                        shape = RoundedCornerShape(8.dp),
+                        color = backgroundColor,
+                        border = BorderStroke(1.dp, borderColor)
                     ) {
                         Text(
                             text = status.boardLabel(),
-                            modifier = Modifier.padding(14.dp),
-                            color = if (status == card.status) TaskColabMuted else TaskColabBlue,
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 17.dp),
+                            color = textColor,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -702,7 +991,7 @@ private fun MoveCardDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = "Cerrar")
+                Text(text = "Cerrar", color = TaskColabBlue, fontWeight = FontWeight.Bold)
             }
         }
     )
@@ -710,13 +999,14 @@ private fun MoveCardDialog(
 
 private enum class BoardNavItem(
     val label: String,
-    val icon: ImageVector
+    val selectedIcon: Int,
+    val unselectedIcon: Int
 ) {
-    BOARDS("Tableros", Icons.Filled.Assignment),
-    TASKS("Tareas", Icons.Filled.Checklist),
-    REPORTS("Reportes", Icons.Filled.Assessment),
-    USERS("Usuarios", Icons.Filled.Group),
-    PROFILE("Perfil", Icons.Filled.Person)
+    BOARDS("Tableros", R.drawable.icn_tableros_seleccionado, R.drawable.icn_tableros_seleccionado),
+    TASKS("Tareas", R.drawable.icn_tareas_seleccionado, R.drawable.icn_tareas),
+    REPORTS("Reportes", R.drawable.icn_reportes_seleccionado, R.drawable.icn_reportes),
+    USERS("Usuarios", R.drawable.icn_usuarios_seleccionado, R.drawable.icn_usuarios),
+    PROFILE("Perfil", R.drawable.icn_perfil_seleccionado, R.drawable.icn_perfil)
 }
 
 @Composable
@@ -765,11 +1055,15 @@ private fun BottomNavButton(
             .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            imageVector = item.icon,
+        Image(
+            painter = painterResource(id = if (selected) item.selectedIcon else item.unselectedIcon),
             contentDescription = item.label,
-            tint = if (selected) TaskColabBlue else TaskColabWhite,
-            modifier = Modifier.size(26.dp)
+            colorFilter = if (!selected && item == BoardNavItem.BOARDS) {
+                ColorFilter.tint(TaskColabWhite)
+            } else {
+                null
+            },
+            modifier = Modifier.size(28.dp)
         )
         Text(
             text = item.label,
@@ -786,8 +1080,62 @@ private fun TaskStatus.boardLabel(): String = when (this) {
     TaskStatus.COMPLETED -> "Completado"
 }
 
+private fun TaskStatus.moveOptionColors(currentStatus: TaskStatus): Triple<Color, Color, Color> = when {
+    this == TaskStatus.PENDING -> Triple(Color(0xFFFFE1E1), Color(0xFFD71920), TaskColabBlue)
+    this == currentStatus -> Triple(Color(0xFFEFEFEF), Color(0xFF6B6B6B), TaskColabBlue)
+    this == TaskStatus.IN_PROGRESS -> Triple(Color(0xFFFFEBD2), Color(0xFFE88A00), TaskColabBlue)
+    else -> Triple(Color(0xFFE0FFE6), Color(0xFF00D615), TaskColabBlue)
+}
+
 private fun TaskPriority.priorityLabel(): String = when (this) {
     TaskPriority.HIGH -> "Alta"
     TaskPriority.MEDIUM -> "Media"
     TaskPriority.LOW -> "Baja"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BoardDatePickerDialog(
+    onDismiss: () -> Unit,
+    onDateSelected: (String) -> Unit
+) {
+    val datePickerState = rememberDatePickerState()
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        onDateSelected(formatDateMillis(millis))
+                    }
+                }
+            ) {
+                Text(text = "Aceptar", color = TaskColabBlue, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Cancelar", color = TaskColabBlue)
+            }
+        }
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+private fun formatShortDate(rawValue: String): String {
+    val digits = rawValue.filter { it.isDigit() }.take(6)
+    return buildString {
+        digits.forEachIndexed { index, char ->
+            if (index == 2 || index == 4) append('-')
+            append(char)
+        }
+    }
+}
+
+private fun formatDateMillis(millis: Long): String {
+    return SimpleDateFormat("dd-MM-yy", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }.format(Date(millis))
 }

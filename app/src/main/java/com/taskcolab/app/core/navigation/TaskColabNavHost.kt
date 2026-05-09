@@ -65,7 +65,15 @@ fun TaskColabNavHost(
                 onNavigateToProfile = { navController.navigateSingleTopTo(NavRoutes.PROFILE) }
             )
         }
-        composable(NavRoutes.TASKS) { TasksPlaceholderScreen() }
+        composable(NavRoutes.TASKS) {
+            TasksPlaceholderScreen(
+                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onNavigateToTasks = { navController.navigateSingleTopTo(NavRoutes.TASKS) },
+                onNavigateToReports = { navController.navigateSingleTopTo(NavRoutes.REPORTS) },
+                onNavigateToUsers = { navController.navigateSingleTopTo(NavRoutes.USERS) },
+                onNavigateToProfile = { navController.navigateSingleTopTo(NavRoutes.PROFILE) }
+            )
+        }
         composable(NavRoutes.REPORTS) { ReportsPlaceholderScreen() }
         composable(NavRoutes.USERS) { UsersPlaceholderScreen() }
         composable(NavRoutes.PROFILE) { ProfilePlaceholderScreen() }
