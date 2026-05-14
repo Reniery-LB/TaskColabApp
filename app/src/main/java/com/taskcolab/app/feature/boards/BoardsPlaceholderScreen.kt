@@ -58,8 +58,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +84,7 @@ import com.taskcolab.app.domain.model.TaskCard
 import com.taskcolab.app.domain.model.TaskPriority
 import com.taskcolab.app.domain.model.TaskStatus
 import com.taskcolab.app.domain.model.User
-import com.taskcolab.app.domain.model.UserRole
+import androidx.hilt.navigation.compose.hiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -96,32 +96,13 @@ fun BoardsPlaceholderScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    viewModel: BoardsViewModel = hiltViewModel()
 ) {
-    val users = remember {
-        listOf(
-            User(1, "Reniery Lucero Beltran", "reniery@taskcolab.com", UserRole.ADMIN, true),
-            User(2, "Keyra Grijalva Ochoa", "keyra@taskcolab.com", UserRole.USER, true),
-        )
-    }
-    val cards = remember {
-        mutableStateListOf(
-            TaskCard(
-                id = 1,
-                title = "Diseñar Mockups Figma",
-                description = "Crear la version movil de todos los modulos del sistema.",
-                status = TaskStatus.PENDING,
-                priority = TaskPriority.HIGH,
-                dueDate = "28-08-12",
-                assignedUser = users.first()
-            )
-        )
-    }
-
+    val uiState by viewModel.uiState.collectAsState()
     var selectedStatus by remember { mutableStateOf(TaskStatus.PENDING) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var cardToMove by remember { mutableStateOf<TaskCard?>(null) }
-    var nextId by remember { mutableIntStateOf(2) }
 
     Scaffold(
         containerColor = TaskColabWhite,
@@ -143,7 +124,7 @@ fun BoardsPlaceholderScreen(
         },
         floatingActionButton = {}
     ) { innerPadding ->
-        val visibleCards = cards.filter { it.status == selectedStatus }
+        val visibleCards = uiState.cards.filter { it.status == selectedStatus }
 
         Box(
             modifier = Modifier
@@ -161,13 +142,17 @@ fun BoardsPlaceholderScreen(
                     BoardTaskCard(
                         card = card,
                         onMove = { cardToMove = card },
-                        onDelete = { cards.remove(card) }
+                        onDelete = { viewModel.deleteLocalCard(card) }
                     )
                 }
 
                 if (visibleCards.isEmpty()) {
                     item {
-                        EmptyBoardState(status = selectedStatus)
+                        EmptyBoardState(
+                            status = selectedStatus,
+                            isLoading = uiState.isLoading,
+                            error = uiState.error
+                        )
                     }
                 }
             }
@@ -192,21 +177,17 @@ fun BoardsPlaceholderScreen(
 
     if (showCreateDialog) {
         CreateCardSheet(
-            users = users,
+            users = uiState.users,
             initialStatus = selectedStatus,
             onDismiss = { showCreateDialog = false },
             onCreate = { title, description, status, priority, dueDate, selectedUsers ->
-                cards.add(
-                    TaskCard(
-                        id = nextId++,
-                        title = title,
-                        description = description,
-                        status = status,
-                        priority = priority,
-                        dueDate = dueDate,
-                        assignedUser = selectedUsers.firstOrNull(),
-                        assignedUsers = selectedUsers
-                    )
+                viewModel.addLocalCard(
+                    title = title,
+                    description = description,
+                    status = status,
+                    priority = priority,
+                    dueDate = dueDate,
+                    selectedUsers = selectedUsers
                 )
                 selectedStatus = status
                 showCreateDialog = false
@@ -219,11 +200,8 @@ fun BoardsPlaceholderScreen(
             card = card,
             onDismiss = { cardToMove = null },
             onMoveTo = { status ->
-                val index = cards.indexOfFirst { it.id == card.id }
-                if (index >= 0) {
-                    cards[index] = card.copy(status = status)
-                    selectedStatus = status
-                }
+                viewModel.moveLocalCard(card, status)
+                selectedStatus = status
                 cardToMove = null
             }
         )
@@ -481,7 +459,11 @@ private fun ThinLine() {
 }
 
 @Composable
-private fun EmptyBoardState(status: TaskStatus) {
+private fun EmptyBoardState(
+    status: TaskStatus,
+    isLoading: Boolean,
+    error: String?
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -489,13 +471,17 @@ private fun EmptyBoardState(status: TaskStatus) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Sin tarjetas en ${status.boardLabel()}",
+            text = when {
+                isLoading -> "Cargando tareas..."
+                error != null -> "No se pudieron cargar tareas"
+                else -> "Sin tarjetas en ${status.boardLabel()}"
+            },
             style = MaterialTheme.typography.titleMedium,
             color = TaskColabInk
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Toca + para crear una tarjeta en esta columna.",
+            text = error ?: "Toca + para crear una tarjeta en esta columna.",
             style = MaterialTheme.typography.bodyMedium,
             color = TaskColabMuted
         )

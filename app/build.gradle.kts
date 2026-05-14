@@ -1,9 +1,24 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("kotlin-kapt")
     id("com.google.dagger.hilt.android")
 }
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+
+val taskColabApiBaseUrl: String =
+    localProperties.getProperty(
+        "taskcolab.apiBaseUrl",
+        "http://192.168.0.100/PROYECTO_GESTOR_TAREAS/assets/api/"
+    )
 
 android {
     namespace = "com.taskcolab.app"
@@ -17,6 +32,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "TASKCOLAB_API_BASE_URL", "\"$taskColabApiBaseUrl\"")
+
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -43,6 +60,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -92,10 +110,10 @@ dependencies {
     // DataStore (sesión)
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // Retrofit (API) - comentado, se activa cuando el backend esté listo
-    // implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    // implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-    // implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    // Retrofit (API)
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Coil (carga de imágenes)
     implementation("io.coil-kt:coil-compose:2.6.0")
