@@ -28,6 +28,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,9 +47,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.core.designsystem.component.TaskColabGradientBackground
 import com.taskcolab.app.core.designsystem.component.TaskColabPrimaryButton
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
+import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
 import com.taskcolab.app.core.designsystem.theme.TaskColabLine
 import com.taskcolab.app.core.designsystem.theme.TaskColabMuted
@@ -57,8 +61,10 @@ import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
 fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
     onNavigateToLogin: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: RegisterViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     var email by remember { mutableStateOf(FieldState()) }
     var fullName by remember { mutableStateOf(FieldState()) }
     var password by remember { mutableStateOf(FieldState()) }
@@ -67,6 +73,12 @@ fun RegisterScreen(
     var confirmationVisible by remember { mutableStateOf(false) }
     var registerAsAdmin by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(uiState.isAuthenticated) {
+        if (uiState.isAuthenticated) {
+            onRegisterSuccess()
+        }
+    }
 
     fun submit() {
         val emailError = validateEmail(email.value)
@@ -86,7 +98,13 @@ fun RegisterScreen(
             confirmationError == null
         ) {
             focusManager.clearFocus()
-            onRegisterSuccess()
+            viewModel.register(
+                name = fullName.value.trim().replace(Regex("\\s+"), " "),
+                email = email.value.trim(),
+                password = password.value,
+                confirmPassword = confirmation.value,
+                isAdmin = registerAsAdmin
+            )
         }
     }
 
@@ -237,9 +255,20 @@ fun RegisterScreen(
 
                     Spacer(modifier = Modifier.height(34.dp))
 
+                    uiState.error?.let { error ->
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TaskColabDanger
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     TaskColabPrimaryButton(
-                        text = "Registrarme",
-                        onClick = { submit() }
+                        text = if (uiState.isLoading) "Creando cuenta..." else "Registrarme",
+                        onClick = { submit() },
+                        enabled = !uiState.isLoading
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))

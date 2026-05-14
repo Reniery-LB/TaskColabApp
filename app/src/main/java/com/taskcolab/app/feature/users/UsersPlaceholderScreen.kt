@@ -39,8 +39,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +63,7 @@ import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
 import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
 import com.taskcolab.app.feature.auth.validateEmail
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun UsersPlaceholderScreen(
@@ -70,21 +71,20 @@ fun UsersPlaceholderScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    viewModel: UsersViewModel = hiltViewModel()
 ) {
-    val users = remember {
-        mutableStateListOf(
-            UserListItem(
-                id = 1,
-                fullName = "Keyra Yariely",
-                email = "keyra@taskcolab.com",
-                assignedTasks = InitialTasks,
-                taskCount = 5,
-                notes = "Tareas bien hechas"
-            )
+    val uiState by viewModel.uiState.collectAsState()
+    val users = uiState.users.map {
+        UserListItem(
+            id = it.id,
+            fullName = it.fullName,
+            email = it.email,
+            assignedTasks = it.assignedTasks,
+            taskCount = it.taskCount,
+            notes = it.notes
         )
     }
-    var nextId by remember { mutableIntStateOf(2) }
     var sheetMode by remember { mutableStateOf<UserSheetMode?>(null) }
 
     Scaffold(
@@ -114,8 +114,17 @@ fun UsersPlaceholderScreen(
                 UserCard(
                     user = user,
                     onEdit = { sheetMode = UserSheetMode.Edit(user) },
-                    onDelete = { users.remove(user) }
+                    onDelete = { viewModel.deleteLocalUser(user.id) }
                 )
+            }
+
+            if (uiState.isLoading || uiState.error != null || users.isEmpty()) {
+                item {
+                    UsersStateMessage(
+                        isLoading = uiState.isLoading,
+                        error = uiState.error
+                    )
+                }
             }
 
             item {
@@ -131,33 +140,46 @@ fun UsersPlaceholderScreen(
             onSave = { form ->
                 when (mode) {
                     UserSheetMode.Create -> {
-                        users.add(
-                            UserListItem(
-                                id = nextId++,
-                                fullName = form.fullName,
-                                email = form.email,
-                                assignedTasks = form.tasks,
-                                taskCount = form.tasks.size,
-                                notes = form.notes
-                            )
-                        )
+                        viewModel.addLocalUser(form)
                     }
                     is UserSheetMode.Edit -> {
-                        val index = users.indexOfFirst { it.id == mode.user.id }
-                        if (index >= 0) {
-                            users[index] = mode.user.copy(
-                                fullName = form.fullName,
-                                email = form.email,
-                                assignedTasks = form.tasks,
-                                taskCount = form.tasks.size,
-                                notes = form.notes
-                            )
-                        }
+                        viewModel.updateLocalUser(mode.user.id, form)
                     }
                 }
                 sheetMode = null
             }
         )
+    }
+}
+
+@Composable
+private fun UsersStateMessage(
+    isLoading: Boolean,
+    error: String?
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = when {
+                isLoading -> "Cargando usuarios..."
+                error != null -> "No se pudieron cargar usuarios"
+                else -> "No hay usuarios registrados"
+            },
+            style = MaterialTheme.typography.titleMedium,
+            color = TaskColabInk,
+            fontWeight = FontWeight.Bold
+        )
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF777777)
+            )
+        }
     }
 }
 
@@ -715,7 +737,7 @@ private data class UserListItem(
     val notes: String
 )
 
-private data class UserForm(
+data class UserForm(
     val fullName: String,
     val email: String,
     val tasks: List<String>,

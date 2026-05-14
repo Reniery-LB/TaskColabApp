@@ -22,6 +22,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -36,9 +38,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.core.designsystem.component.TaskColabGradientBackground
 import com.taskcolab.app.core.designsystem.component.TaskColabPrimaryButton
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
+import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
 import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
 
 @Composable
@@ -46,12 +50,20 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onNavigateToRegister: () -> Unit,
     onForgotPassword: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: LoginViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     var email by remember { mutableStateOf(FieldState()) }
     var password by remember { mutableStateOf(FieldState()) }
     var passwordVisible by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(uiState.isAuthenticated) {
+        if (uiState.isAuthenticated) {
+            onLoginSuccess()
+        }
+    }
 
     fun submit() {
         val emailError = validateEmail(email.value)
@@ -61,7 +73,10 @@ fun LoginScreen(
 
         if (emailError == null && passwordError == null) {
             focusManager.clearFocus()
-            onLoginSuccess()
+            viewModel.login(
+                email = email.value.trim(),
+                password = password.value
+            )
         }
     }
 
@@ -169,9 +184,20 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    uiState.error?.let { error ->
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TaskColabDanger
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
                     TaskColabPrimaryButton(
-                        text = "Iniciar Sesión",
-                        onClick = { submit() }
+                        text = if (uiState.isLoading) "Iniciando..." else "Iniciar Sesión",
+                        onClick = { submit() },
+                        enabled = !uiState.isLoading
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
