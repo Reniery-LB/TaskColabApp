@@ -46,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -61,6 +62,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.R
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
@@ -69,6 +71,8 @@ import com.taskcolab.app.core.designsystem.theme.TaskColabLine
 import com.taskcolab.app.core.designsystem.theme.TaskColabMuted
 import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
 import com.taskcolab.app.domain.model.TaskStatus
+import com.taskcolab.app.domain.model.TaskPriority
+import com.taskcolab.app.feature.boards.BoardsViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,20 +84,22 @@ fun TasksPlaceholderScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    viewModel: BoardsViewModel = hiltViewModel()
 ) {
-    val tasks = remember {
-        mutableStateListOf(
-            TaskListItem(1, "Validacion del login", TaskStatus.PENDING, "KY", Color(0xFFC46CFF)),
-            TaskListItem(2, "Dashboard", TaskStatus.COMPLETED, "JO", Color(0xFF88FF78)),
-            TaskListItem(3, "Base de datos", TaskStatus.IN_PROGRESS, "ER", Color(0xFFFF7479)),
-            TaskListItem(4, "SEO", TaskStatus.COMPLETED, "RL", Color(0xFFFFDF38))
+    val uiState by viewModel.uiState.collectAsState()
+    val tasks = uiState.cards.map { card ->
+        TaskListItem(
+            id = card.id,
+            title = card.title,
+            status = card.status,
+            initials = card.assignedUsers.firstOrNull()?.fullName?.toInitials(),
+            avatarColor = Color(0xFFD9E3FF)
         )
     }
     val selectedIds = remember { mutableStateListOf<Int>() }
     var showCreateDialog by remember { mutableStateOf(false) }
     var deleteMode by remember { mutableStateOf(false) }
-    var nextId by remember { mutableIntStateOf(5) }
 
     Scaffold(
         containerColor = TaskColabWhite,
@@ -130,7 +136,6 @@ fun TasksPlaceholderScreen(
                         checked = if (deleteMode) task.id in selectedIds else task.status == TaskStatus.COMPLETED,
                         deleteMode = deleteMode,
                         onCheckedChange = { checked ->
-                            val index = tasks.indexOfFirst { it.id == task.id }
                             if (deleteMode) {
                                 if (checked) {
                                     if (task.id !in selectedIds) selectedIds.add(task.id)
@@ -138,9 +143,10 @@ fun TasksPlaceholderScreen(
                                     selectedIds.remove(task.id)
                                 }
                             } else {
-                                if (index >= 0) {
-                                    tasks[index] = task.copy(
-                                        status = if (checked) TaskStatus.COMPLETED else TaskStatus.PENDING
+                                uiState.cards.firstOrNull { it.id == task.id }?.let { card ->
+                                    viewModel.moveLocalCard(
+                                        card,
+                                        if (checked) TaskStatus.COMPLETED else TaskStatus.PENDING
                                     )
                                 }
                             }
@@ -178,7 +184,9 @@ fun TasksPlaceholderScreen(
                     onClick = {
                         if (deleteMode) {
                             if (selectedIds.isNotEmpty()) {
-                                tasks.removeAll { it.id in selectedIds }
+                                uiState.cards
+                                    .filter { it.id in selectedIds }
+                                    .forEach { viewModel.deleteLocalCard(it) }
                             }
                             selectedIds.clear()
                             deleteMode = false
@@ -221,7 +229,14 @@ fun TasksPlaceholderScreen(
         CreateTaskSheet(
             onDismiss = { showCreateDialog = false },
             onCreate = { title, status, initials, color ->
-                tasks.add(TaskListItem(nextId++, title, status, initials, color))
+                viewModel.addLocalCard(
+                    title = title,
+                    description = "Creada desde móvil",
+                    status = status,
+                    priority = TaskPriority.HIGH,
+                    dueDate = "Sin fecha",
+                    selectedUsers = emptyList()
+                )
                 showCreateDialog = false
             }
         )
@@ -937,6 +952,14 @@ private fun TaskStatus.taskLabel(): String = when (this) {
     TaskStatus.IN_PROGRESS -> "En proceso"
     TaskStatus.COMPLETED -> "Completado"
 }
+
+private fun String.toInitials(): String =
+    trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString(separator = "") { it.first().uppercase() }
+        .ifBlank { "TC" }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

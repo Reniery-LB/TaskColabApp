@@ -108,6 +108,7 @@ fun BoardsPlaceholderScreen(
         containerColor = TaskColabWhite,
         topBar = {
             BoardsHeader(
+                projectName = uiState.activeProject?.name ?: "Proyecto general",
                 selectedStatus = selectedStatus,
                 onStatusSelected = { selectedStatus = it }
             )
@@ -211,6 +212,7 @@ fun BoardsPlaceholderScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BoardsHeader(
+    projectName: String,
     selectedStatus: TaskStatus,
     onStatusSelected: (TaskStatus) -> Unit
 ) {
@@ -225,13 +227,21 @@ private fun BoardsHeader(
                 .padding(start = 18.dp, top = 46.dp, end = 22.dp, bottom = 26.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Mis Tableros",
-                style = MaterialTheme.typography.headlineLarge,
-                color = TaskColabWhite,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tablero",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = TaskColabWhite,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = projectName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TaskColabWhite.copy(alpha = 0.88f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Box(
                 modifier = Modifier
                     .size(60.dp)

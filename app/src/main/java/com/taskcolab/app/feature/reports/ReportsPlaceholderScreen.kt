@@ -44,7 +44,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -56,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.R
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
@@ -73,21 +76,41 @@ fun ReportsPlaceholderScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    viewModel: ReportsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val stats = remember {
+    val uiState by viewModel.uiState.collectAsState()
+    val stats = uiState.dashboard?.let {
         ReportStats(
-            totalTasks = 4,
-            inProgress = 1,
-            pending = 1,
-            completed = 2,
-            boards = 3,
-            activeUsers = 2,
+            totalTasks = it.totalTasks,
+            inProgress = it.inProgress,
+            pending = it.pending,
+            completed = it.completed,
+            boards = it.stateDistribution.size,
+            activeUsers = it.activeUsers,
+            overdue = it.overdue,
+            dueSoon = it.dueSoon,
+            productivity = it.productivity,
+            progress = it.stateDistribution.map { state ->
+                ReportProgress(state.label, state.percentage.toInt(), state.label.reportColor())
+            }
+        )
+    } ?: remember {
+        ReportStats(
+            totalTasks = 0,
+            inProgress = 0,
+            pending = 0,
+            completed = 0,
+            boards = 0,
+            activeUsers = 0,
+            overdue = 0,
+            dueSoon = 0,
+            productivity = 0,
             progress = buildProgressDistribution(
-                pending = 1,
-                inProgress = 1,
-                completed = 2
+                pending = 0,
+                inProgress = 0,
+                completed = 0
             )
         )
     }
@@ -133,6 +156,14 @@ fun ReportsPlaceholderScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
+                if (uiState.isLoading || uiState.error != null) {
+                    Text(
+                        text = uiState.error ?: "Cargando reportes...",
+                        color = if (uiState.error != null) Color(0xFFD71920) else TaskColabInk,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -156,8 +187,8 @@ fun ReportsPlaceholderScreen(
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         ReportMetricCard(
-                            label = "Pendiente",
-                            value = stats.pending.toString(),
+                            label = "Atrasadas",
+                            value = stats.overdue.toString(),
                             accentColor = Color(0xFFFF1010),
                             modifier = Modifier.weight(1f)
                         )
@@ -173,6 +204,26 @@ fun ReportsPlaceholderScreen(
 
             item {
                 ReportProgressPanel(stats.progress)
+            }
+
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    ReportMetricCard(
+                        label = "Próximas",
+                        value = stats.dueSoon.toString(),
+                        accentColor = Color(0xFFB36B00),
+                        modifier = Modifier.weight(1f)
+                    )
+                    ReportMetricCard(
+                        label = "Productividad",
+                        value = "${stats.productivity}%",
+                        accentColor = TaskColabBlue,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
 
             item {
@@ -555,6 +606,9 @@ private data class ReportStats(
     val completed: Int,
     val boards: Int,
     val activeUsers: Int,
+    val overdue: Int,
+    val dueSoon: Int,
+    val productivity: Int,
     val progress: List<ReportProgress>
 )
 
@@ -593,3 +647,10 @@ private fun buildProgressDistribution(
         ReportProgress("Completado", completedPercent, Color(0xFF23D624))
     )
 }
+
+private fun String.reportColor(): Color =
+    when {
+        contains("pend", ignoreCase = true) -> Color(0xFFFF1010)
+        contains("proceso", ignoreCase = true) -> Color(0xFFE88A00)
+        else -> Color(0xFF23D624)
+    }

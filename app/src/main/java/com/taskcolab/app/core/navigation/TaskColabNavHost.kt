@@ -9,7 +9,9 @@ import androidx.navigation.compose.rememberNavController
 import com.taskcolab.app.feature.auth.LoginScreen
 import com.taskcolab.app.feature.auth.RegisterScreen
 import com.taskcolab.app.feature.boards.BoardsPlaceholderScreen
+import com.taskcolab.app.feature.chat.ChatScreen
 import com.taskcolab.app.feature.profile.ProfilePlaceholderScreen
+import com.taskcolab.app.feature.projects.ProjectsScreen
 import com.taskcolab.app.feature.reports.ReportsPlaceholderScreen
 import com.taskcolab.app.feature.tasks.TasksPlaceholderScreen
 import com.taskcolab.app.feature.users.UsersPlaceholderScreen
@@ -34,7 +36,7 @@ fun TaskColabNavHost(
         composable(NavRoutes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(NavRoutes.BOARDS) {
+                    navController.navigate(NavRoutes.PROJECTS) {
                         popUpTo(NavRoutes.WELCOME) { inclusive = true }
                     }
                 },
@@ -45,7 +47,7 @@ fun TaskColabNavHost(
         composable(NavRoutes.REGISTER) {
             RegisterScreen(
                 onRegisterSuccess = {
-                    navController.navigate(NavRoutes.BOARDS) {
+                    navController.navigate(NavRoutes.PROJECTS) {
                         popUpTo(NavRoutes.WELCOME) { inclusive = true }
                     }
                 },
@@ -56,9 +58,15 @@ fun TaskColabNavHost(
                 }
             )
         }
+        composable(NavRoutes.PROJECTS) {
+            ProjectsScreen(
+                onOpenBoard = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onOpenChat = { navController.navigateSingleTopTo(NavRoutes.CHAT) }
+            )
+        }
         composable(NavRoutes.BOARDS) {
             BoardsPlaceholderScreen(
-                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.PROJECTS) },
                 onNavigateToTasks = { navController.navigateSingleTopTo(NavRoutes.TASKS) },
                 onNavigateToReports = { navController.navigateSingleTopTo(NavRoutes.REPORTS) },
                 onNavigateToUsers = { navController.navigateSingleTopTo(NavRoutes.USERS) },
@@ -67,7 +75,7 @@ fun TaskColabNavHost(
         }
         composable(NavRoutes.TASKS) {
             TasksPlaceholderScreen(
-                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.PROJECTS) },
                 onNavigateToTasks = { navController.navigateSingleTopTo(NavRoutes.TASKS) },
                 onNavigateToReports = { navController.navigateSingleTopTo(NavRoutes.REPORTS) },
                 onNavigateToUsers = { navController.navigateSingleTopTo(NavRoutes.USERS) },
@@ -76,7 +84,7 @@ fun TaskColabNavHost(
         }
         composable(NavRoutes.REPORTS) {
             ReportsPlaceholderScreen(
-                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.PROJECTS) },
                 onNavigateToTasks = { navController.navigateSingleTopTo(NavRoutes.TASKS) },
                 onNavigateToReports = { navController.navigateSingleTopTo(NavRoutes.REPORTS) },
                 onNavigateToUsers = { navController.navigateSingleTopTo(NavRoutes.USERS) },
@@ -85,7 +93,7 @@ fun TaskColabNavHost(
         }
         composable(NavRoutes.USERS) {
             UsersPlaceholderScreen(
-                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.PROJECTS) },
                 onNavigateToTasks = { navController.navigateSingleTopTo(NavRoutes.TASKS) },
                 onNavigateToReports = { navController.navigateSingleTopTo(NavRoutes.REPORTS) },
                 onNavigateToUsers = { navController.navigateSingleTopTo(NavRoutes.USERS) },
@@ -94,11 +102,16 @@ fun TaskColabNavHost(
         }
         composable(NavRoutes.PROFILE) {
             ProfilePlaceholderScreen(
-                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.BOARDS) },
+                onNavigateToBoards = { navController.navigateSingleTopTo(NavRoutes.PROJECTS) },
                 onNavigateToTasks = { navController.navigateSingleTopTo(NavRoutes.TASKS) },
                 onNavigateToReports = { navController.navigateSingleTopTo(NavRoutes.REPORTS) },
                 onNavigateToUsers = { navController.navigateSingleTopTo(NavRoutes.USERS) },
                 onNavigateToProfile = { navController.navigateSingleTopTo(NavRoutes.PROFILE) }
+            )
+        }
+        composable(NavRoutes.CHAT) {
+            ChatScreen(
+                onBackToProjects = { navController.navigateSingleTopTo(NavRoutes.PROJECTS) }
             )
         }
     }
