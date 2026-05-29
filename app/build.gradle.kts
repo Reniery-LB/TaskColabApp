@@ -17,7 +17,7 @@ val localProperties = Properties().apply {
 val taskColabApiBaseUrl: String =
     localProperties.getProperty(
         "taskcolab.apiBaseUrl",
-        "http://192.168.0.100/PROYECTO_GESTOR_TAREAS/assets/api/"
+        "https://taskcolab.com/assets/api/"
     )
 
 android {
