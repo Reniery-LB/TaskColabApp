@@ -362,9 +362,7 @@ private fun TaskRowCard(
                         text = task.title,
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Clip
+                        fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     StatusBadge(status = task.status)
@@ -785,8 +783,6 @@ private fun <T> ExpandableSelector(
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.Black,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             Image(

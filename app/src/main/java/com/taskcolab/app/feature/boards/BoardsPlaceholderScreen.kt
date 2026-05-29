@@ -269,9 +269,7 @@ private fun BoardsHeader(
                 Text(
                     text = projectName,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = TaskColabWhite.copy(alpha = 0.88f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = TaskColabWhite.copy(alpha = 0.88f)
                 )
             }
             IconButton(onClick = onOpenChat) {
@@ -365,8 +363,6 @@ private fun StatusTab(
             fontSize = 14.sp,
             lineHeight = 16.sp,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -410,16 +406,12 @@ private fun BoardTaskCard(
                 text = card.title,
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.Black,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                fontWeight = FontWeight.Bold
             )
             Text(
                 text = card.description,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color(0xFF666666),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                color = Color(0xFF666666)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -852,8 +844,6 @@ private fun <T> ExpandableBoardSelector(
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.Black,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             Image(
@@ -924,9 +914,7 @@ private fun UserChoiceRow(
             text = name,
             style = MaterialTheme.typography.labelLarge,
             color = Color.Black,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -1000,9 +988,7 @@ private fun ChoicePill(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = if (selected) TaskColabWhite else Color(0xFF5F5F5F),
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            fontWeight = FontWeight.Bold
         )
     }
 }

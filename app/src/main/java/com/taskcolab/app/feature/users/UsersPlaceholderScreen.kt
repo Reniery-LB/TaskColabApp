@@ -10,10 +10,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -72,6 +74,7 @@ import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
 import com.taskcolab.app.feature.auth.validateEmail
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.core.designsystem.component.TaskColabConfirmDialog
+import com.taskcolab.app.domain.model.UserRole
 
 @Composable
 fun UsersPlaceholderScreen(
@@ -85,6 +88,7 @@ fun UsersPlaceholderScreen(
     viewModel: UsersViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val canManageUsers = uiState.currentUser?.role == UserRole.ADMIN
     val users = uiState.users.map {
         UserListItem(
             id = it.id,
@@ -130,6 +134,7 @@ fun UsersPlaceholderScreen(
             items(users, key = { it.id }) { user ->
                 UserCard(
                     user = user,
+                    canManageUsers = canManageUsers,
                     onEdit = { sheetMode = UserSheetMode.Edit(user) },
                     onDelete = { userToDelete = user }
                 )
@@ -144,13 +149,15 @@ fun UsersPlaceholderScreen(
                 }
             }
 
-            item {
-                AddUserButton(onClick = { sheetMode = UserSheetMode.Create })
+            if (canManageUsers) {
+                item {
+                    AddUserButton(onClick = { sheetMode = UserSheetMode.Create })
+                }
             }
         }
     }
 
-    sheetMode?.let { mode ->
+    if (canManageUsers) sheetMode?.let { mode ->
         UserFormSheet(
             mode = mode,
             availableTasks = uiState.taskTitles,
@@ -169,7 +176,7 @@ fun UsersPlaceholderScreen(
         )
     }
 
-    userToDelete?.let { user ->
+    if (canManageUsers) userToDelete?.let { user ->
         TaskColabConfirmDialog(
             title = "Eliminar usuario",
             message = "Se eliminará a ${user.fullName} de la lista de usuarios.",
@@ -259,29 +266,32 @@ private fun UsersHeader(
 @Composable
 private fun UserCard(
     user: UserListItem,
+    canManageUsers: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(104.dp)
             .shadow(4.dp, RoundedCornerShape(8.dp), ambientColor = Color.Black.copy(alpha = 0.1f))
             .border(BorderStroke(1.dp, Color(0xFFCFCFCF)), RoundedCornerShape(8.dp)),
         shape = RoundedCornerShape(8.dp),
         color = TaskColabWhite
     ) {
-        Row(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+        ) {
             Box(
                 modifier = Modifier
                     .width(7.dp)
-                    .fillMaxSize()
+                    .fillMaxHeight()
                     .background(TaskColabBlue)
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxSize()
                     .padding(start = 18.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.Center
             ) {
@@ -289,21 +299,17 @@ private fun UserCard(
                     text = user.fullName,
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = user.email,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFF777777),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = Color(0xFF777777)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     UserTag(
                         text = "${user.taskCount} ${if (user.taskCount == 1) "Tarea" else "Tareas"}",
@@ -318,37 +324,39 @@ private fun UserCard(
                     }
                 }
             }
-            Column(
-                modifier = Modifier
-                    .width(54.dp)
-                    .fillMaxSize()
-                    .padding(vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                IconButton(
-                    onClick = onEdit,
+            if (canManageUsers) {
+                Column(
                     modifier = Modifier
-                        .size(30.dp)
-                        .background(Color(0xFFE9F0FF), RoundedCornerShape(4.dp))
+                        .width(54.dp)
+                        .fillMaxSize()
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.icn_editar),
-                        contentDescription = "Editar usuario",
-                        modifier = Modifier.size(31.dp)
-                    )
-                }
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier
-                        .size(30.dp)
-                        .background(Color(0xFFFFDADA), RoundedCornerShape(4.dp))
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.icn_basura),
-                        contentDescription = "Eliminar usuario",
-                        modifier = Modifier.size(34.dp)
-                    )
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier
+                            .size(30.dp)
+                            .background(Color(0xFFE9F0FF), RoundedCornerShape(4.dp))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.icn_editar),
+                            contentDescription = "Editar usuario",
+                            modifier = Modifier.size(31.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier
+                            .size(30.dp)
+                            .background(Color(0xFFFFDADA), RoundedCornerShape(4.dp))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.icn_basura),
+                            contentDescription = "Eliminar usuario",
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
                 }
             }
         }
@@ -370,8 +378,7 @@ private fun UserTag(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             color = if (selected) TaskColabBlue else Color(0xFF777777),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Clip
         )
     }
 }

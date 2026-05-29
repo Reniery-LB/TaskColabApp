@@ -65,7 +65,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.core.designsystem.component.TaskColabConfirmDialog
@@ -283,16 +282,12 @@ private fun ProjectCard(
                         text = project.name,
                         style = MaterialTheme.typography.titleLarge,
                         color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = project.description.ifBlank { "Sin descripción" },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TaskColabMuted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        color = TaskColabMuted
                     )
                 }
                 FilterChip(
@@ -411,7 +406,7 @@ private fun ProjectAction(
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.size(6.dp))
-        Text(label, maxLines = 1)
+        Text(label)
     }
 }
 
@@ -625,8 +620,6 @@ private fun ColorProjectField(
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Black,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
         }
