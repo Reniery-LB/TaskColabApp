@@ -70,7 +70,10 @@ fun String?.toAbsoluteAvatarUrl(): String? {
         return value
     }
 
-    val base = BuildConfig.TASKCOLAB_API_BASE_URL
-    val origin = base.substringBefore("/PROYECTO_GESTOR_TAREAS/")
+    val base = BuildConfig.TASKCOLAB_API_BASE_URL.trimEnd('/')
+    val origin = base
+        .substringBefore("/assets/api")
+        .substringBefore("/PROYECTO_GESTOR_TAREAS/")
+        .trimEnd('/')
     return if (value.startsWith("/")) origin + value else "$origin/$value"
 }

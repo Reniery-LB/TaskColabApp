@@ -1,6 +1,6 @@
 # TaskColab App
 
-Aplicacion movil Android para gestionar proyectos, tableros Kanban, tareas, usuarios, reportes y chat colaborativo de TaskColab. Esta version consume el backend PHP/MySQL del proyecto web ubicado normalmente en `C:\xampp\htdocs\PROYECTO_GESTOR_TAREAS`.
+Aplicacion movil Android para gestionar proyectos, tableros Kanban, tareas, usuarios, reportes y chat colaborativo de TaskColab. Esta version consume el backend PHP/MySQL desplegado en produccion.
 
 ## Funcionalidades
 
@@ -22,8 +22,8 @@ Si la base de datos ya tiene estas cuentas, se pueden usar directamente. Si la b
 
 | Rol | Correo | Contrasena |
 | --- | --- | --- |
-| Administrador | `admin@taskcolab.com` | `Admin1234` |
-| Usuario | `usuario@taskcolab.com` | `Usuario1234` |
+| Administrador | `admin@gmail.com` | `Admin1234` |
+| Usuario | `usuario@gmail.com` | `Usuario1234` |
 
 La cuenta administradora debe registrarse marcando la opcion de administrador. La cuenta de usuario normal debe registrarse sin marcar esa opcion.
 
@@ -32,25 +32,24 @@ La cuenta administradora debe registrarse marcando la opcion de administrador. L
 - Android Studio.
 - JDK 17.
 - Android SDK con `compileSdk 34`.
-- XAMPP con Apache y MySQL activos.
-- Backend TaskColab en `C:\xampp\htdocs\PROYECTO_GESTOR_TAREAS`.
-- Base de datos importada desde los scripts SQL del backend.
+- Backend TaskColab publicado en Hostinger.
+- Base de datos de produccion importada en Hostinger.
 
 ## Configuracion del backend
 
 La app obtiene la URL de la API desde `local.properties` con la propiedad:
 
 ```properties
-taskcolab.apiBaseUrl=http://127.0.0.1:8080/PROYECTO_GESTOR_TAREAS/assets/api/
+taskcolab.apiBaseUrl=https://taskcolab.com/assets/api/
 ```
 
-Para probar en emulador Android, normalmente conviene usar:
+Para volver temporalmente a local en emulador Android, normalmente conviene usar:
 
 ```properties
 taskcolab.apiBaseUrl=http://10.0.2.2/PROYECTO_GESTOR_TAREAS/assets/api/
 ```
 
-Para probar en telefono fisico, usar la IP local de la computadora donde corre XAMPP:
+Para volver temporalmente a local en telefono fisico, usar la IP local de la computadora donde corre XAMPP:
 
 ```properties
 taskcolab.apiBaseUrl=http://TU_IP_LOCAL/PROYECTO_GESTOR_TAREAS/assets/api/
@@ -60,12 +59,11 @@ La URL debe terminar en `/assets/api/`.
 
 ## Instalacion
 
-1. Abrir el backend en XAMPP y activar Apache/MySQL.
-2. Importar la base de datos desde los archivos de `SQL/` del proyecto web.
-3. Abrir este proyecto en Android Studio.
-4. Revisar `local.properties` y ajustar `taskcolab.apiBaseUrl`.
-5. Sincronizar Gradle.
-6. Ejecutar la app en emulador o dispositivo.
+1. Verificar que `https://taskcolab.com/assets/api/auth/login.php` este disponible en produccion.
+2. Abrir este proyecto en Android Studio.
+3. Revisar `local.properties` y confirmar `taskcolab.apiBaseUrl=https://taskcolab.com/assets/api/`.
+4. Sincronizar Gradle.
+5. Ejecutar la app en emulador o dispositivo.
 
 Tambien se puede compilar desde terminal:
 
