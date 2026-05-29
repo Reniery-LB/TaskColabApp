@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.taskcolab.app.data.taskcolab.TaskColabRepository
 import com.taskcolab.app.data.taskcolab.UserListItemData
+import com.taskcolab.app.domain.model.User
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,9 @@ import javax.inject.Inject
 data class UsersUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
-    val users: List<UserListItemData> = emptyList()
+    val users: List<UserListItemData> = emptyList(),
+    val taskTitles: List<String> = emptyList(),
+    val currentUser: User? = null
 )
 
 @HiltViewModel
@@ -34,18 +37,31 @@ class UsersViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            repository.getUsers()
-                .onSuccess { users ->
-                    _uiState.update { it.copy(isLoading = false, users = users) }
+            val usersResult = repository.getUsers()
+            val tasksResult = repository.getBoardTasks(projectId = null)
+            val currentUserResult = repository.getCurrentUser()
+            if (usersResult.isSuccess || tasksResult.isSuccess || currentUserResult.isSuccess) {
+                val error = usersResult.exceptionOrNull()?.message
+                    ?: tasksResult.exceptionOrNull()?.message
+                    ?: currentUserResult.exceptionOrNull()?.message
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error,
+                        users = usersResult.getOrDefault(it.users),
+                        taskTitles = tasksResult.getOrDefault(emptyList()).map { task -> task.title }.distinct(),
+                        currentUser = currentUserResult.getOrNull()
+                    )
                 }
-                .onFailure { throwable ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = throwable.message ?: "No se pudieron cargar usuarios"
-                        )
-                    }
+            } else {
+                val throwable = usersResult.exceptionOrNull() ?: tasksResult.exceptionOrNull()
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = throwable?.message ?: "No se pudieron cargar usuarios"
+                    )
                 }
+            }
         }
     }
 

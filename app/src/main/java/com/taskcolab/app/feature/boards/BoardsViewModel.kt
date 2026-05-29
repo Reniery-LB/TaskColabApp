@@ -7,10 +7,13 @@ import com.taskcolab.app.domain.model.TaskCard
 import com.taskcolab.app.domain.model.TaskPriority
 import com.taskcolab.app.domain.model.TaskStatus
 import com.taskcolab.app.domain.model.User
+import com.taskcolab.app.domain.model.Project
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,7 +22,9 @@ data class BoardsUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
     val cards: List<TaskCard> = emptyList(),
-    val users: List<User> = emptyList()
+    val users: List<User> = emptyList(),
+    val activeProject: Project? = null,
+    val currentUser: User? = null
 )
 
 @HiltViewModel
@@ -29,10 +34,14 @@ class BoardsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(BoardsUiState())
     val uiState: StateFlow<BoardsUiState> = _uiState.asStateFlow()
 
-    private var localNextId = -1
-
     init {
         refresh()
+        viewModelScope.launch {
+            repository.activeProject.collect { project ->
+                _uiState.update { it.copy(activeProject = project) }
+                refresh()
+            }
+        }
     }
 
     fun refresh() {
@@ -41,15 +50,18 @@ class BoardsViewModel @Inject constructor(
 
             val tasksResult = repository.getBoardTasks()
             val usersResult = repository.getUsers()
+            val currentUserResult = repository.getCurrentUser()
 
             val error = tasksResult.exceptionOrNull()?.message
                 ?: usersResult.exceptionOrNull()?.message
+                ?: currentUserResult.exceptionOrNull()?.message
 
             _uiState.update {
                 it.copy(
                     isLoading = false,
                     error = error,
                     cards = tasksResult.getOrDefault(emptyList()),
+                    activeProject = repository.activeProject.value,
                     users = usersResult.getOrDefault(emptyList()).map { user ->
                         User(
                             id = user.id,
@@ -58,7 +70,8 @@ class BoardsViewModel @Inject constructor(
                             role = com.taskcolab.app.domain.model.UserRole.USER,
                             isActive = true
                         )
-                    }
+                    },
+                    currentUser = currentUserResult.getOrNull()
                 )
             }
         }
@@ -72,28 +85,32 @@ class BoardsViewModel @Inject constructor(
         dueDate: String,
         selectedUsers: List<User>
     ) {
-        val card = TaskCard(
-            id = localNextId--,
-            title = title,
-            description = description,
-            status = status,
-            priority = priority,
-            dueDate = dueDate,
-            assignedUser = selectedUsers.firstOrNull(),
-            assignedUsers = selectedUsers
-        )
-        _uiState.update { it.copy(cards = it.cards + card) }
+        viewModelScope.launch {
+            repository.createTask(title, description, status, priority, dueDate, selectedUsers)
+                .onSuccess { refresh() }
+                .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }
+        }
     }
 
     fun moveLocalCard(card: TaskCard, status: TaskStatus) {
-        _uiState.update {
-            it.copy(cards = it.cards.map { current ->
-                if (current.id == card.id) current.copy(status = status) else current
-            })
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(cards = it.cards.map { current ->
+                    if (current.id == card.id) current.copy(status = status) else current
+                })
+            }
+            repository.moveTask(card.id, status)
+                .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }
+            refresh()
         }
     }
 
     fun deleteLocalCard(card: TaskCard) {
-        _uiState.update { it.copy(cards = it.cards.filterNot { current -> current.id == card.id }) }
+        viewModelScope.launch {
+            _uiState.update { it.copy(cards = it.cards.filterNot { current -> current.id == card.id }) }
+            repository.deleteTasks(listOf(card.id))
+                .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }
+            refresh()
+        }
     }
 }
