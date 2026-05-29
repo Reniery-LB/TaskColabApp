@@ -1,6 +1,7 @@
 package com.taskcolab.app.data.remote
 
 import com.taskcolab.app.data.remote.dto.AuthResponse
+import com.taskcolab.app.data.remote.dto.AvatarUploadResponse
 import com.taskcolab.app.data.remote.dto.BoardListResponse
 import com.taskcolab.app.data.remote.dto.ConversationListResponse
 import com.taskcolab.app.data.remote.dto.ConversationResponse
@@ -26,9 +27,12 @@ import com.taskcolab.app.data.remote.dto.UserListResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.HTTP
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Query
+import okhttp3.MultipartBody
 
 interface TaskColabApi {
     @POST("auth/login.php")
@@ -39,6 +43,10 @@ interface TaskColabApi {
 
     @GET("auth/me.php")
     suspend fun me(): AuthResponse
+
+    @Multipart
+    @POST("profile/avatar.php")
+    suspend fun uploadAvatar(@Part avatar: MultipartBody.Part): AvatarUploadResponse
 
     @POST("auth/logout.php")
     suspend fun logout()
@@ -63,7 +71,7 @@ interface TaskColabApi {
     suspend fun getBoards(@Query("project_id") projectId: Int? = null): BoardListResponse
 
     @GET("projects/index.php")
-    suspend fun getProjects(): ProjectListResponse
+    suspend fun getProjects(@Query("archived") archived: Int? = null): ProjectListResponse
 
     @POST("projects/index.php")
     suspend fun createProject(@Body request: CreateProjectRequest): ProjectResponse

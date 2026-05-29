@@ -37,8 +37,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -60,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.R
+import com.taskcolab.app.core.designsystem.component.UserAvatar
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
 import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
@@ -77,6 +83,8 @@ fun ReportsPlaceholderScreen(
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onLogout: () -> Unit = {},
     viewModel: ReportsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -135,7 +143,12 @@ fun ReportsPlaceholderScreen(
     Scaffold(
         containerColor = TaskColabWhite,
         topBar = {
-            ReportsHeader()
+            ReportsHeader(
+                currentUserName = uiState.currentUser?.fullName.orEmpty(),
+                currentUserAvatarUrl = uiState.currentUser?.avatarUrl,
+                onOpenChat = onOpenChat,
+                onLogout = onLogout
+            )
         },
         bottomBar = {
             TaskColabBottomBar(
@@ -260,7 +273,12 @@ fun ReportsPlaceholderScreen(
 }
 
 @Composable
-private fun ReportsHeader() {
+private fun ReportsHeader(
+    currentUserName: String,
+    currentUserAvatarUrl: String?,
+    onOpenChat: () -> Unit,
+    onLogout: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -275,19 +293,25 @@ private fun ReportsHeader() {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .background(TaskColabWhite, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "RC",
-                style = MaterialTheme.typography.headlineMedium,
-                color = TaskColabInk,
-                fontWeight = FontWeight.Bold
+        IconButton(onClick = onOpenChat) {
+            Icon(
+                imageVector = Icons.Filled.Chat,
+                contentDescription = "Abrir chat",
+                tint = TaskColabWhite
             )
         }
+        IconButton(onClick = onLogout) {
+            Icon(
+                imageVector = Icons.Filled.Logout,
+                contentDescription = "Cerrar sesión",
+                tint = TaskColabWhite
+            )
+        }
+        UserAvatar(
+            fullName = currentUserName,
+            avatarUrl = currentUserAvatarUrl,
+            size = 60.dp
+        )
     }
 }
 

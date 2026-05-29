@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +26,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -59,11 +65,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.taskcolab.app.R
+import com.taskcolab.app.core.designsystem.component.UserAvatar
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
 import com.taskcolab.app.core.designsystem.theme.TaskColabWhite
 import com.taskcolab.app.feature.auth.validateEmail
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.taskcolab.app.core.designsystem.component.TaskColabConfirmDialog
 
 @Composable
 fun UsersPlaceholderScreen(
@@ -72,6 +80,8 @@ fun UsersPlaceholderScreen(
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onLogout: () -> Unit = {},
     viewModel: UsersViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -82,15 +92,22 @@ fun UsersPlaceholderScreen(
             email = it.email,
             assignedTasks = it.assignedTasks,
             taskCount = it.taskCount,
-            notes = it.notes
+            notes = it.notes,
+            avatarUrl = it.avatarUrl
         )
     }
     var sheetMode by remember { mutableStateOf<UserSheetMode?>(null) }
+    var userToDelete by remember { mutableStateOf<UserListItem?>(null) }
 
     Scaffold(
         containerColor = TaskColabWhite,
         topBar = {
-            UsersHeader()
+            UsersHeader(
+                currentUserName = uiState.currentUser?.fullName.orEmpty(),
+                currentUserAvatarUrl = uiState.currentUser?.avatarUrl,
+                onOpenChat = onOpenChat,
+                onLogout = onLogout
+            )
         },
         bottomBar = {
             TaskColabBottomBar(
@@ -114,7 +131,7 @@ fun UsersPlaceholderScreen(
                 UserCard(
                     user = user,
                     onEdit = { sheetMode = UserSheetMode.Edit(user) },
-                    onDelete = { viewModel.deleteLocalUser(user.id) }
+                    onDelete = { userToDelete = user }
                 )
             }
 
@@ -136,6 +153,7 @@ fun UsersPlaceholderScreen(
     sheetMode?.let { mode ->
         UserFormSheet(
             mode = mode,
+            availableTasks = uiState.taskTitles,
             onDismiss = { sheetMode = null },
             onSave = { form ->
                 when (mode) {
@@ -148,6 +166,18 @@ fun UsersPlaceholderScreen(
                 }
                 sheetMode = null
             }
+        )
+    }
+
+    userToDelete?.let { user ->
+        TaskColabConfirmDialog(
+            title = "Eliminar usuario",
+            message = "Se eliminará a ${user.fullName} de la lista de usuarios.",
+            onConfirm = {
+                viewModel.deleteLocalUser(user.id)
+                userToDelete = null
+            },
+            onDismiss = { userToDelete = null }
         )
     }
 }
@@ -184,7 +214,12 @@ private fun UsersStateMessage(
 }
 
 @Composable
-private fun UsersHeader() {
+private fun UsersHeader(
+    currentUserName: String,
+    currentUserAvatarUrl: String?,
+    onOpenChat: () -> Unit,
+    onLogout: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -199,19 +234,25 @@ private fun UsersHeader() {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .background(TaskColabWhite, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "RC",
-                style = MaterialTheme.typography.headlineMedium,
-                color = TaskColabInk,
-                fontWeight = FontWeight.Bold
+        IconButton(onClick = onOpenChat) {
+            Icon(
+                imageVector = Icons.Filled.Chat,
+                contentDescription = "Abrir chat",
+                tint = TaskColabWhite
             )
         }
+        IconButton(onClick = onLogout) {
+            Icon(
+                imageVector = Icons.Filled.Logout,
+                contentDescription = "Cerrar sesión",
+                tint = TaskColabWhite
+            )
+        }
+        UserAvatar(
+            fullName = currentUserName,
+            avatarUrl = currentUserAvatarUrl,
+            size = 60.dp
+        )
     }
 }
 
@@ -358,6 +399,7 @@ private fun AddUserButton(onClick: () -> Unit) {
 @Composable
 private fun UserFormSheet(
     mode: UserSheetMode,
+    availableTasks: List<String>,
     onDismiss: () -> Unit,
     onSave: (UserForm) -> Unit
 ) {
@@ -368,7 +410,7 @@ private fun UserFormSheet(
     val selectedTasks = remember(mode) {
         mutableStateListOf<String>().apply {
             editingUser?.assignedTasks
-                ?.filter { it in InitialTasks }
+                ?.filter { it in availableTasks }
                 ?.let(::addAll)
         }
     }
@@ -395,6 +437,7 @@ private fun UserFormSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 24.dp, end = 24.dp, bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -430,7 +473,7 @@ private fun UserFormSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "ASIGNAR TAREAS INICIALES",
+                    text = "ASIGNAR TAREAS",
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color(0xFF6D6D6D),
                     fontWeight = FontWeight.Bold,
@@ -445,7 +488,7 @@ private fun UserFormSheet(
                         .padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    InitialTasks.forEach { task ->
+                    availableTasks.forEach { task ->
                         TaskChoiceRow(
                             task = task,
                             selected = task in selectedTasks,
@@ -456,6 +499,14 @@ private fun UserFormSheet(
                                     selectedTasks.add(task)
                                 }
                             }
+                        )
+                    }
+                    if (availableTasks.isEmpty()) {
+                        Text(
+                            text = "No hay tareas disponibles",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color(0xFF777777),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -717,12 +768,6 @@ private fun Modifier.dashedBorder(color: Color, radius: androidx.compose.ui.unit
     }
 }
 
-private val InitialTasks = listOf(
-    "Backend API",
-    "Frontend UI",
-    "Documentación"
-)
-
 private sealed interface UserSheetMode {
     data object Create : UserSheetMode
     data class Edit(val user: UserListItem) : UserSheetMode
@@ -734,7 +779,8 @@ private data class UserListItem(
     val email: String,
     val assignedTasks: List<String>,
     val taskCount: Int,
-    val notes: String
+    val notes: String,
+    val avatarUrl: String?
 )
 
 data class UserForm(

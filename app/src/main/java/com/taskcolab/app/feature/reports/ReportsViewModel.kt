@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.taskcolab.app.data.taskcolab.TaskColabRepository
 import com.taskcolab.app.domain.model.ReportDashboard
+import com.taskcolab.app.domain.model.User
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,8 @@ import javax.inject.Inject
 data class ReportsUiState(
     val isLoading: Boolean = true,
     val error: String? = null,
-    val dashboard: ReportDashboard? = null
+    val dashboard: ReportDashboard? = null,
+    val currentUser: User? = null
 )
 
 @HiltViewModel
@@ -32,13 +34,17 @@ class ReportsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
-            repository.getReportDashboard()
-                .onSuccess { dashboard ->
-                    _uiState.update { it.copy(isLoading = false, dashboard = dashboard) }
-                }
-                .onFailure { throwable ->
-                    _uiState.update { it.copy(isLoading = false, error = throwable.message) }
-                }
+            val dashboardResult = repository.getReportDashboard()
+            val currentUserResult = repository.getCurrentUser()
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = dashboardResult.exceptionOrNull()?.message
+                        ?: currentUserResult.exceptionOrNull()?.message,
+                    dashboard = dashboardResult.getOrNull(),
+                    currentUser = currentUserResult.getOrNull()
+                )
+            }
         }
     }
 }

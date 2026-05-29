@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -35,6 +39,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -64,6 +69,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.taskcolab.app.R
+import com.taskcolab.app.core.designsystem.component.TaskColabConfirmDialog
+import com.taskcolab.app.core.designsystem.component.UserAvatar
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
@@ -85,6 +92,8 @@ fun TasksPlaceholderScreen(
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onLogout: () -> Unit = {},
     viewModel: BoardsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -93,6 +102,10 @@ fun TasksPlaceholderScreen(
             id = card.id,
             title = card.title,
             status = card.status,
+            assignedUsers = card.assignedUsers
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString { it.fullName }
+                ?: "Sin asignar",
             initials = card.assignedUsers.firstOrNull()?.fullName?.toInitials(),
             avatarColor = Color(0xFFD9E3FF)
         )
@@ -100,11 +113,17 @@ fun TasksPlaceholderScreen(
     val selectedIds = remember { mutableStateListOf<Int>() }
     var showCreateDialog by remember { mutableStateOf(false) }
     var deleteMode by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = TaskColabWhite,
         topBar = {
-            TasksHeader()
+            TasksHeader(
+                currentUserName = uiState.currentUser?.fullName.orEmpty(),
+                currentUserAvatarUrl = uiState.currentUser?.avatarUrl,
+                onOpenChat = onOpenChat,
+                onLogout = onLogout
+            )
         },
         bottomBar = {
             TaskColabBottomBar(
@@ -184,12 +203,10 @@ fun TasksPlaceholderScreen(
                     onClick = {
                         if (deleteMode) {
                             if (selectedIds.isNotEmpty()) {
-                                uiState.cards
-                                    .filter { it.id in selectedIds }
-                                    .forEach { viewModel.deleteLocalCard(it) }
+                                showDeleteConfirm = true
+                            } else {
+                                deleteMode = false
                             }
-                            selectedIds.clear()
-                            deleteMode = false
                         } else {
                             selectedIds.clear()
                             deleteMode = true
@@ -227,24 +244,46 @@ fun TasksPlaceholderScreen(
 
     if (showCreateDialog) {
         CreateTaskSheet(
+            users = uiState.users,
             onDismiss = { showCreateDialog = false },
-            onCreate = { title, status, initials, color ->
+            onCreate = { title, description, status, priority, dueDate, selectedUsers ->
                 viewModel.addLocalCard(
                     title = title,
-                    description = "Creada desde móvil",
+                    description = description,
                     status = status,
-                    priority = TaskPriority.HIGH,
-                    dueDate = "Sin fecha",
-                    selectedUsers = emptyList()
+                    priority = priority,
+                    dueDate = dueDate,
+                    selectedUsers = selectedUsers
                 )
                 showCreateDialog = false
             }
         )
     }
+
+    if (showDeleteConfirm) {
+        TaskColabConfirmDialog(
+            title = "Eliminar tareas",
+            message = "Se eliminarán ${selectedIds.size} tarea(s) seleccionada(s). Esta acción no se puede deshacer.",
+            onConfirm = {
+                uiState.cards
+                    .filter { it.id in selectedIds }
+                    .forEach { viewModel.deleteLocalCard(it) }
+                selectedIds.clear()
+                deleteMode = false
+                showDeleteConfirm = false
+            },
+            onDismiss = { showDeleteConfirm = false }
+        )
+    }
 }
 
 @Composable
-private fun TasksHeader() {
+private fun TasksHeader(
+    currentUserName: String,
+    currentUserAvatarUrl: String?,
+    onOpenChat: () -> Unit,
+    onLogout: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -259,19 +298,25 @@ private fun TasksHeader() {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .background(TaskColabWhite, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "RC",
-                style = MaterialTheme.typography.headlineMedium,
-                color = TaskColabInk,
-                fontWeight = FontWeight.Bold
+        IconButton(onClick = onOpenChat) {
+            Icon(
+                imageVector = Icons.Filled.Chat,
+                contentDescription = "Abrir chat",
+                tint = TaskColabWhite
             )
         }
+        IconButton(onClick = onLogout) {
+            Icon(
+                imageVector = Icons.Filled.Logout,
+                contentDescription = "Cerrar sesión",
+                tint = TaskColabWhite
+            )
+        }
+        UserAvatar(
+            fullName = currentUserName,
+            avatarUrl = currentUserAvatarUrl,
+            size = 60.dp
+        )
     }
 }
 
@@ -285,66 +330,106 @@ private fun TaskRowCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(84.dp)
             .shadow(5.dp, RoundedCornerShape(8.dp), ambientColor = Color.Black.copy(alpha = 0.12f))
             .border(BorderStroke(2.dp, TaskColabBlue), RoundedCornerShape(8.dp)),
         shape = RoundedCornerShape(8.dp),
         color = if (deleteMode && checked) Color(0xFFE7E7E7) else TaskColabWhite
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .clickable { onCheckedChange(!checked) }
-                .padding(start = 14.dp, end = 18.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 14.dp, top = 14.dp, end = 18.dp, bottom = 14.dp)
         ) {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = CheckboxDefaults.colors(
-                    checkedColor = TaskColabBlue,
-                    uncheckedColor = Color(0xFF8E8585),
-                    checkmarkColor = TaskColabWhite
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = TaskColabBlue,
+                        uncheckedColor = Color(0xFF8E8585),
+                        checkmarkColor = TaskColabWhite
+                    )
                 )
-            )
 
-            Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Clip
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                StatusBadge(status = task.status)
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            if (task.initials != null && task.avatarColor != null) {
-                Box(
-                    modifier = Modifier
-                        .size(58.dp)
-                        .background(task.avatarColor, CircleShape),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = task.initials,
-                        style = MaterialTheme.typography.headlineMedium,
+                        text = task.title,
+                        style = MaterialTheme.typography.titleMedium,
                         color = Color.Black,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Clip
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    StatusBadge(status = task.status)
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                if (task.initials != null && task.avatarColor != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(58.dp)
+                            .background(task.avatarColor, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = task.initials,
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            TaskThinLine()
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    text = "Asignado:",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color(0xFF666666),
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(Color(0xFFE9F0FF), RoundedCornerShape(3.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = task.assignedUsers,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TaskColabBlue,
+                        overflow = TextOverflow.Clip
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            TaskThinLine()
         }
     }
+}
+
+@Composable
+private fun TaskThinLine() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(Color(0xFFD0D0D0))
+    )
 }
 
 @Composable
@@ -409,16 +494,16 @@ private fun EmptyTasksState() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CreateTaskSheet(
+    users: List<com.taskcolab.app.domain.model.User>,
     onDismiss: () -> Unit,
-    onCreate: (String, TaskStatus, String?, Color?) -> Unit
+    onCreate: (String, String, TaskStatus, TaskPriority, String, List<com.taskcolab.app.domain.model.User>) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf(TaskStatus.PENDING) }
-    var selectedPriority by remember { mutableStateOf("Alta") }
-    var assigneeKeyra by remember { mutableStateOf(false) }
-    var assigneeReniery by remember { mutableStateOf(false) }
+    var selectedPriority by remember { mutableStateOf(TaskPriority.HIGH) }
+    val selectedUserIds = remember { mutableStateListOf<Int>() }
     var showDatePicker by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val canCreate = title.isNotBlank() && description.isNotBlank() && dueDate.length == 8
@@ -432,6 +517,7 @@ private fun CreateTaskSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 24.dp, end = 24.dp, bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -473,9 +559,9 @@ private fun CreateTaskSheet(
                 )
                 ExpandableSelector(
                     label = "PRIORIDAD",
-                    value = selectedPriority,
-                    options = listOf("Alta", "Media", "Baja"),
-                    optionLabel = { it },
+                    value = selectedPriority.priorityLabel(),
+                    options = TaskPriority.entries,
+                    optionLabel = { it.priorityLabel() },
                     modifier = Modifier.weight(1f),
                     onSelected = { selectedPriority = it },
                 )
@@ -491,8 +577,19 @@ private fun CreateTaskSheet(
                     color = Color(0xFF707070),
                     fontWeight = FontWeight.Bold
                 )
-                AssignmentRow("Keyra Yariely Grijalva Ochoa", assigneeKeyra) { assigneeKeyra = it }
-                AssignmentRow("Reniery Lucero Beltran", assigneeReniery) { assigneeReniery = it }
+                users.forEach { user ->
+                    AssignmentRow(
+                        name = user.fullName,
+                        checked = user.id in selectedUserIds,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                if (user.id !in selectedUserIds) selectedUserIds.add(user.id)
+                            } else {
+                                selectedUserIds.remove(user.id)
+                            }
+                        }
+                    )
+                }
             }
 
             LabeledTaskField(
@@ -518,17 +615,14 @@ private fun CreateTaskSheet(
                 canSave = canCreate,
                 onCancel = onDismiss,
                 onSave = {
-                    val initials: String? = when {
-                        assigneeKeyra -> "KY"
-                        assigneeReniery -> "RL"
-                        else -> null
-                    }
-                    val avatarColor: Color? = when {
-                        assigneeKeyra -> Color(0xFFC46CFF)
-                        assigneeReniery -> Color(0xFFFFDF38)
-                        else -> null
-                    }
-                    onCreate(title.trim(), selectedStatus, initials, avatarColor)
+                    onCreate(
+                        title.trim(),
+                        description.trim(),
+                        selectedStatus,
+                        selectedPriority,
+                        dueDate.trim(),
+                        users.filter { it.id in selectedUserIds }
+                    )
                 }
             )
         }
@@ -937,6 +1031,7 @@ private data class TaskListItem(
     val id: Int,
     val title: String,
     val status: TaskStatus,
+    val assignedUsers: String,
     val initials: String?,
     val avatarColor: Color?
 )
@@ -951,6 +1046,12 @@ private fun TaskStatus.taskLabel(): String = when (this) {
     TaskStatus.PENDING -> "Pendiente"
     TaskStatus.IN_PROGRESS -> "En proceso"
     TaskStatus.COMPLETED -> "Completado"
+}
+
+private fun TaskPriority.priorityLabel(): String = when (this) {
+    TaskPriority.HIGH -> "Alta"
+    TaskPriority.MEDIUM -> "Media"
+    TaskPriority.LOW -> "Baja"
 }
 
 private fun String.toInitials(): String =

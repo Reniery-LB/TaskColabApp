@@ -49,7 +49,8 @@ data class UpdateProjectRequest(
     val color: String? = null,
     @SerializedName("due_date")
     val dueDate: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    val action: String? = null
 )
 
 data class CreateConversationRequest(

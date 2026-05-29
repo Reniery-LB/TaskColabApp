@@ -36,6 +36,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.MultipartBody
 
 @Singleton
 class TaskColabRepository @Inject constructor(
@@ -48,12 +49,12 @@ class TaskColabRepository @Inject constructor(
         _activeProject.value = project
     }
 
-    suspend fun getProjects(): Result<List<Project>> =
+    suspend fun getProjects(archived: Boolean = false): Result<List<Project>> =
         runCatching {
-            val response = api.getProjects()
+            val response = api.getProjects(archived = if (archived) 1 else null)
             if (!response.ok) error(response.message ?: "No se pudieron cargar proyectos")
             response.projects.map { it.toProject() }.also { projects ->
-                if (_activeProject.value == null && projects.isNotEmpty()) {
+                if (!archived && _activeProject.value == null && projects.isNotEmpty()) {
                     _activeProject.value = projects.first()
                 }
             }
@@ -66,7 +67,7 @@ class TaskColabRepository @Inject constructor(
         dueDate: String?
     ): Result<Project> =
         runCatching {
-            val response = api.createProject(CreateProjectRequest(name, description, color, dueDate))
+            val response = api.createProject(CreateProjectRequest(name, description, color, dueDate?.toApiDateOrNull()))
             if (!response.ok || response.project == null) {
                 error(response.message ?: "No se pudo crear el proyecto")
             }
@@ -83,6 +84,22 @@ class TaskColabRepository @Inject constructor(
             if (_activeProject.value?.id == project.id) _activeProject.value = null
         }
 
+    suspend fun restoreProject(project: Project): Result<Project> =
+        runCatching {
+            val response = api.updateProject(UpdateProjectRequest(projectId = project.id, action = "restore"))
+            if (!response.ok || response.project == null) {
+                error(response.message ?: "No se pudo desarchivar el proyecto")
+            }
+            response.project.toProject().also { _activeProject.value = it }
+        }
+
+    suspend fun deleteArchivedProject(project: Project): Result<Unit> =
+        runCatching {
+            val response = api.archiveProject(UpdateProjectRequest(projectId = project.id, action = "delete"))
+            if (!response.ok) error(response.message ?: "No se pudo eliminar el proyecto")
+            if (_activeProject.value?.id == project.id) _activeProject.value = null
+        }
+
     private suspend fun updateProjectStatus(project: Project, status: String): Result<Project> =
         runCatching {
             val response = api.updateProject(UpdateProjectRequest(projectId = project.id, status = status))
@@ -96,7 +113,30 @@ class TaskColabRepository @Inject constructor(
         runCatching {
             val response = api.getUsers()
             if (!response.ok) error(response.message ?: "No se pudieron cargar usuarios")
-            response.users.map { it.toUserListItemData() }
+            val tasks = runCatching { api.getTasks() }.getOrNull()?.takeIf { it.ok }?.tasks.orEmpty()
+            val taskTitlesByUser = tasks
+                    .flatMap { task -> task.assignedUsers.map { user -> user.id to task.title } }
+                    .groupBy({ it.first }, { it.second })
+            response.users.map { it.toUserListItemData(taskTitlesByUser[it.id].orEmpty()) }
+        }
+
+    suspend fun getCurrentUser(): Result<User> =
+        runCatching {
+            val response = api.me()
+            if (!response.ok || response.user == null) {
+                error(response.message ?: "No se pudo cargar el perfil")
+            }
+            response.user.toDomainUser()
+        }
+
+    suspend fun uploadAvatar(avatar: MultipartBody.Part): Result<User> =
+        runCatching {
+            val response = api.uploadAvatar(avatar)
+            if (!response.ok) {
+                error(response.message ?: "No se pudo actualizar el avatar")
+            }
+            response.user?.toDomainUser()
+                ?: getCurrentUser().getOrThrow().copy(avatarUrl = response.avatarUrl)
         }
 
     suspend fun getBoardTasks(projectId: Int? = activeProject.value?.id): Result<List<TaskCard>> =
@@ -206,7 +246,8 @@ data class UserListItemData(
     val email: String,
     val assignedTasks: List<String>,
     val taskCount: Int,
-    val notes: String
+    val notes: String,
+    val avatarUrl: String? = null
 )
 
 private fun RemoteTask.toTaskCard(): TaskCard =
@@ -301,14 +342,25 @@ private fun RemoteAssignedUser.toDomainUser(): User =
         isActive = true
     )
 
-private fun RemoteUser.toUserListItemData(): UserListItemData =
+private fun RemoteUser.toDomainUser(): User =
+    User(
+        id = id,
+        fullName = name,
+        email = email,
+        role = if (isAdmin) UserRole.ADMIN else UserRole.USER,
+        isActive = isActive,
+        avatarUrl = avatarUrl
+    )
+
+private fun RemoteUser.toUserListItemData(assignedTaskTitles: List<String>): UserListItemData =
     UserListItemData(
         id = id,
         fullName = name,
         email = email,
-        assignedTasks = emptyList(),
-        taskCount = assignedCount ?: 0,
-        notes = notes.orEmpty()
+        assignedTasks = assignedTaskTitles,
+        taskCount = assignedTaskTitles.size.takeIf { it > 0 } ?: (assignedCount ?: 0),
+        notes = notes.orEmpty(),
+        avatarUrl = avatarUrl
     )
 
 private fun String.toTaskStatus(): TaskStatus =

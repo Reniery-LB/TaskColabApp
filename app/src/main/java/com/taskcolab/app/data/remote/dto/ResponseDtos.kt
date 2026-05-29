@@ -90,3 +90,11 @@ data class SyncChangesResponse(
     val latestId: Long = 0,
     val message: String? = null
 )
+
+data class AvatarUploadResponse(
+    val ok: Boolean,
+    val message: String? = null,
+    @SerializedName("avatar_url")
+    val avatarUrl: String? = null,
+    val user: RemoteUser? = null
+)

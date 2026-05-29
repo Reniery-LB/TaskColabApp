@@ -68,11 +68,18 @@ class AuthRepository @Inject constructor(
             )
         }
 
-    suspend fun logout(): Result<Unit> =
-        runApiCatching {
+    suspend fun logout(): Result<Unit> {
+        var apiFailure: Throwable? = null
+        return runApiCatching {
+            try {
             api.logout()
+            } catch (throwable: Throwable) {
+                apiFailure = throwable
+            }
             sessionManager.clearSession()
+            apiFailure?.let { throw it }
         }
+    }
 
     private suspend fun runApiCatching(block: suspend () -> Unit): Result<Unit> {
         return try {

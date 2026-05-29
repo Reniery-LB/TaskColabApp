@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,9 +31,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -71,9 +75,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.taskcolab.app.R
+import com.taskcolab.app.core.designsystem.component.TaskColabConfirmDialog
+import com.taskcolab.app.core.designsystem.component.UserAvatar
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
@@ -93,16 +101,20 @@ import java.util.TimeZone
 @Composable
 fun BoardsPlaceholderScreen(
     onNavigateToBoards: () -> Unit = {},
+    onNavigateToProjects: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onLogout: () -> Unit = {},
     viewModel: BoardsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedStatus by remember { mutableStateOf(TaskStatus.PENDING) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var cardToMove by remember { mutableStateOf<TaskCard?>(null) }
+    var cardToDelete by remember { mutableStateOf<TaskCard?>(null) }
 
     Scaffold(
         containerColor = TaskColabWhite,
@@ -110,7 +122,11 @@ fun BoardsPlaceholderScreen(
             BoardsHeader(
                 projectName = uiState.activeProject?.name ?: "Proyecto general",
                 selectedStatus = selectedStatus,
-                onStatusSelected = { selectedStatus = it }
+                currentUser = uiState.currentUser,
+                onStatusSelected = { selectedStatus = it },
+                onNavigateToProjects = onNavigateToProjects,
+                onOpenChat = onOpenChat,
+                onLogout = onLogout
             )
         },
         bottomBar = {
@@ -143,7 +159,7 @@ fun BoardsPlaceholderScreen(
                     BoardTaskCard(
                         card = card,
                         onMove = { cardToMove = card },
-                        onDelete = { viewModel.deleteLocalCard(card) }
+                        onDelete = { cardToDelete = card }
                     )
                 }
 
@@ -207,6 +223,18 @@ fun BoardsPlaceholderScreen(
             }
         )
     }
+
+    cardToDelete?.let { card ->
+        TaskColabConfirmDialog(
+            title = "Eliminar tarjeta",
+            message = "La tarjeta se eliminará del tablero y no aparecerá en tus tareas.",
+            onConfirm = {
+                viewModel.deleteLocalCard(card)
+                cardToDelete = null
+            },
+            onDismiss = { cardToDelete = null }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -214,7 +242,11 @@ fun BoardsPlaceholderScreen(
 private fun BoardsHeader(
     projectName: String,
     selectedStatus: TaskStatus,
-    onStatusSelected: (TaskStatus) -> Unit
+    currentUser: User?,
+    onStatusSelected: (TaskStatus) -> Unit,
+    onNavigateToProjects: () -> Unit,
+    onOpenChat: () -> Unit,
+    onLogout: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -242,43 +274,67 @@ private fun BoardsHeader(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .background(TaskColabWhite, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "RC",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = TaskColabInk,
-                    fontWeight = FontWeight.Bold
+            IconButton(onClick = onOpenChat) {
+                Icon(
+                    imageVector = Icons.Filled.Chat,
+                    contentDescription = "Abrir chat",
+                    tint = TaskColabWhite
                 )
             }
+            IconButton(onClick = onLogout) {
+                Icon(
+                    imageVector = Icons.Filled.Logout,
+                    contentDescription = "Cerrar sesión",
+                    tint = TaskColabWhite
+                )
+            }
+            UserAvatar(
+                fullName = currentUser?.fullName.orEmpty(),
+                avatarUrl = currentUser?.avatarUrl,
+                size = 60.dp
+            )
         }
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(TaskColabWhite)
                 .padding(horizontal = 24.dp, vertical = 18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatusTab(
-                status = TaskStatus.PENDING,
-                selected = selectedStatus == TaskStatus.PENDING,
-                onClick = { onStatusSelected(TaskStatus.PENDING) }
-            )
-            StatusTab(
-                status = TaskStatus.IN_PROGRESS,
-                selected = selectedStatus == TaskStatus.IN_PROGRESS,
-                onClick = { onStatusSelected(TaskStatus.IN_PROGRESS) }
-            )
-            StatusTab(
-                status = TaskStatus.COMPLETED,
-                selected = selectedStatus == TaskStatus.COMPLETED,
-                onClick = { onStatusSelected(TaskStatus.COMPLETED) }
-            )
+            Button(
+                onClick = onNavigateToProjects,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TaskColabBlue, contentColor = TaskColabWhite),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+            ) {
+                Text("Proyectos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatusTab(
+                    status = TaskStatus.PENDING,
+                    selected = selectedStatus == TaskStatus.PENDING,
+                    onClick = { onStatusSelected(TaskStatus.PENDING) },
+                    modifier = Modifier.weight(1f)
+                )
+                StatusTab(
+                    status = TaskStatus.IN_PROGRESS,
+                    selected = selectedStatus == TaskStatus.IN_PROGRESS,
+                    onClick = { onStatusSelected(TaskStatus.IN_PROGRESS) },
+                    modifier = Modifier.weight(1f)
+                )
+                StatusTab(
+                    status = TaskStatus.COMPLETED,
+                    selected = selectedStatus == TaskStatus.COMPLETED,
+                    onClick = { onStatusSelected(TaskStatus.COMPLETED) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -288,28 +344,32 @@ private fun BoardsHeader(
 private fun StatusTab(
     status: TaskStatus,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = status.boardLabel(),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .background(
+                color = if (selected) TaskColabBlue else Color(0xFFE0E0E0),
+                shape = RoundedCornerShape(50)
             )
-        },
-        shape = RoundedCornerShape(50),
-        border = null,
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = Color(0xFFE0E0E0),
-            labelColor = Color(0xFF666666),
-            selectedContainerColor = TaskColabBlue,
-            selectedLabelColor = TaskColabWhite
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = status.boardLabel(),
+            color = if (selected) TaskColabWhite else Color(0xFF666666),
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            lineHeight = 16.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
         )
-    )
+    }
 }
 
 @Composable
@@ -366,7 +426,7 @@ private fun BoardTaskCard(
             ThinLine()
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 Text(
                     text = "Asignado:",
                     style = MaterialTheme.typography.bodyLarge,
@@ -376,6 +436,7 @@ private fun BoardTaskCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
+                        .weight(1f)
                         .background(Color(0xFFE9F0FF), RoundedCornerShape(3.dp))
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
@@ -383,11 +444,10 @@ private fun BoardTaskCard(
                         text = card.assignedUsers
                             .takeIf { it.isNotEmpty() }
                             ?.joinToString { it.fullName }
-                            ?: "Sin asignar",
+                        ?: "Sin asignar",
                         style = MaterialTheme.typography.labelLarge,
                         color = TaskColabBlue,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Clip
                     )
                 }
             }
@@ -414,22 +474,19 @@ private fun BoardTaskCard(
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(54.dp)
+                Box(
+                    modifier = Modifier
+                        .width(56.dp)
+                        .height(40.dp)
+                        .background(Color(0xFFFFDADA), RoundedCornerShape(5.dp))
+                        .clickable(onClick = onDelete),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(Color(0xFFFFDADA), RoundedCornerShape(4.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.btn_basura),
-                            contentDescription = "Eliminar tarjeta",
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.btn_basura),
+                        contentDescription = "Eliminar tarjeta",
+                        modifier = Modifier.size(42.dp)
+                    )
                 }
             }
         }
@@ -527,6 +584,7 @@ private fun CreateCardSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 24.dp, end = 24.dp, bottom = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)

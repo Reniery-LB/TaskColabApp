@@ -3,6 +3,7 @@ package com.taskcolab.app.feature.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.taskcolab.app.data.taskcolab.TaskColabRepository
+import com.taskcolab.app.data.taskcolab.UserListItemData
 import com.taskcolab.app.domain.model.ChatMessage
 import com.taskcolab.app.domain.model.Conversation
 import com.taskcolab.app.domain.model.Project
@@ -20,6 +21,7 @@ data class ChatUiState(
     val error: String? = null,
     val activeProject: Project? = null,
     val conversations: List<Conversation> = emptyList(),
+    val directUsers: List<UserListItemData> = emptyList(),
     val selectedConversation: Conversation? = null,
     val messages: List<ChatMessage> = emptyList()
 )
@@ -35,9 +37,9 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             repository.activeProject.collect { project ->
                 _uiState.update { it.copy(activeProject = project) }
-                if (project != null) openProjectChat(project.id)
             }
         }
+        loadDirectUsers()
         viewModelScope.launch {
             while (true) {
                 refreshConversations(keepSelection = true)
@@ -47,14 +49,28 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private fun loadDirectUsers() {
+        viewModelScope.launch {
+            val currentUser = repository.getCurrentUser().getOrNull()
+            repository.getUsers()
+                .onSuccess { users ->
+                    _uiState.update {
+                        it.copy(directUsers = users.filterNot { user -> user.id == currentUser?.id })
+                    }
+                }
+                .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }
+        }
+    }
+
     fun refreshConversations(keepSelection: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             repository.getConversations()
                 .onSuccess { conversations ->
                     val selected = if (keepSelection) {
-                        conversations.firstOrNull { it.id == _uiState.value.selectedConversation?.id }
-                            ?: conversations.firstOrNull()
+                        _uiState.value.selectedConversation?.let { current ->
+                            conversations.firstOrNull { it.id == current.id }
+                        }
                     } else {
                         conversations.firstOrNull()
                     }
@@ -85,9 +101,25 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun openDirectChat(userId: Int) {
+        viewModelScope.launch {
+            repository.createDirectConversation(userId)
+                .onSuccess { conversation ->
+                    _uiState.update { it.copy(selectedConversation = conversation, messages = emptyList()) }
+                    refreshConversations(keepSelection = true)
+                    loadMessages(conversation.id)
+                }
+                .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }
+        }
+    }
+
     fun selectConversation(conversation: Conversation) {
         _uiState.update { it.copy(selectedConversation = conversation, messages = emptyList()) }
         loadMessages(conversation.id)
+    }
+
+    fun closeConversation() {
+        _uiState.update { it.copy(selectedConversation = null, messages = emptyList()) }
     }
 
     fun loadMessages(conversationId: Int) {
@@ -110,6 +142,24 @@ class ChatViewModel @Inject constructor(
             repository.sendMessage(conversation.id, body)
                 .onSuccess { message ->
                     _uiState.update { it.copy(messages = (it.messages + message).distinctBy { item -> item.id }) }
+                    refreshConversations(keepSelection = true)
+                }
+                .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }
+        }
+    }
+
+    fun deleteConversation(conversation: Conversation) {
+        if (!conversation.canDelete) return
+        viewModelScope.launch {
+            repository.deleteConversation(conversation.id)
+                .onSuccess {
+                    _uiState.update { state ->
+                        state.copy(
+                            conversations = state.conversations.filterNot { it.id == conversation.id },
+                            selectedConversation = state.selectedConversation?.takeIf { it.id != conversation.id },
+                            messages = if (state.selectedConversation?.id == conversation.id) emptyList() else state.messages
+                        )
+                    }
                     refreshConversations(keepSelection = true)
                 }
                 .onFailure { throwable -> _uiState.update { it.copy(error = throwable.message) } }

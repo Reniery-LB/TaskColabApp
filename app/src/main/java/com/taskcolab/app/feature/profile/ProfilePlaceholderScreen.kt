@@ -30,10 +30,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -44,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,8 +70,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.taskcolab.app.R
+import com.taskcolab.app.core.designsystem.component.toAbsoluteAvatarUrl
 import com.taskcolab.app.core.designsystem.theme.TaskColabBlue
 import com.taskcolab.app.core.designsystem.theme.TaskColabDanger
 import com.taskcolab.app.core.designsystem.theme.TaskColabInk
@@ -79,28 +87,45 @@ fun ProfilePlaceholderScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onLogout: () -> Unit = {},
+    viewModel: ProfileViewModel = hiltViewModel()
 ) {
-    var fullName by rememberSaveable { mutableStateOf("Regina Cebreros") }
-    var email by rememberSaveable { mutableStateOf("regina@taskcolab.com") }
+    val uiState by viewModel.uiState.collectAsState()
+    var editedName by rememberSaveable { mutableStateOf<String?>(null) }
+    var accountDeleted by rememberSaveable { mutableStateOf(false) }
+    val fullName = when {
+        accountDeleted -> "Cuenta eliminada"
+        editedName != null -> editedName.orEmpty()
+        else -> uiState.user?.fullName ?: "Cargando perfil..."
+    }
+    val email = if (accountDeleted) "sin correo" else uiState.user?.email ?: uiState.error ?: ""
     var avatarUriValue by rememberSaveable { mutableStateOf<String?>(null) }
     var showNameSheet by remember { mutableStateOf(false) }
     var showPasswordSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    val avatarUri = avatarUriValue?.let(Uri::parse)
+    val avatarModel: Any? = avatarUriValue?.let(Uri::parse)
+        ?: uiState.user?.avatarUrl.toAbsoluteAvatarUrl()
     val initials = fullName.toInitials()
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
             avatarUriValue = uri.toString()
+            viewModel.uploadAvatar(uri)
         }
     }
 
     Scaffold(
         containerColor = TaskColabWhite,
         topBar = {
-            ProfileHeader(initials = initials, avatarUri = avatarUri)
+            ProfileHeader(
+                initials = initials,
+                avatarModel = avatarModel,
+                onOpenChat = onOpenChat,
+                onLogout = onLogout
+            )
         },
         bottomBar = {
             TaskColabBottomBar(
@@ -123,7 +148,7 @@ fun ProfilePlaceholderScreen(
         ) {
             ProfileAvatar(
                 initials = initials,
-                avatarUri = avatarUri,
+                avatarModel = avatarModel,
                 onPickPhoto = {
                     photoPickerLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -175,7 +200,7 @@ fun ProfilePlaceholderScreen(
             currentName = fullName,
             onDismiss = { showNameSheet = false },
             onConfirm = {
-                fullName = it
+                editedName = it
                 showNameSheet = false
             }
         )
@@ -208,8 +233,7 @@ fun ProfilePlaceholderScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        fullName = "Cuenta Eliminada"
-                        email = "sin correo"
+                        accountDeleted = true
                         showDeleteDialog = false
                     }
                 ) {
@@ -228,7 +252,9 @@ fun ProfilePlaceholderScreen(
 @Composable
 private fun ProfileHeader(
     initials: String,
-    avatarUri: Uri?
+    avatarModel: Any?,
+    onOpenChat: () -> Unit,
+    onLogout: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -244,15 +270,29 @@ private fun ProfileHeader(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
+        IconButton(onClick = onOpenChat) {
+            Icon(
+                imageVector = Icons.Filled.Chat,
+                contentDescription = "Abrir chat",
+                tint = TaskColabWhite
+            )
+        }
+        IconButton(onClick = onLogout) {
+            Icon(
+                imageVector = Icons.Filled.Logout,
+                contentDescription = "Cerrar sesión",
+                tint = TaskColabWhite
+            )
+        }
         Box(
             modifier = Modifier
                 .size(60.dp)
                 .background(TaskColabWhite, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            if (avatarUri != null) {
+            if (avatarModel != null) {
                 AsyncImage(
-                    model = avatarUri,
+                    model = avatarModel,
                     contentDescription = "Foto de perfil",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -274,7 +314,7 @@ private fun ProfileHeader(
 @Composable
 private fun ProfileAvatar(
     initials: String,
-    avatarUri: Uri?,
+    avatarModel: Any?,
     onPickPhoto: () -> Unit
 ) {
     Box(
@@ -289,9 +329,9 @@ private fun ProfileAvatar(
                 .background(TaskColabBlue, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            if (avatarUri != null) {
+            if (avatarModel != null) {
                 AsyncImage(
-                    model = avatarUri,
+                    model = avatarModel,
                     contentDescription = "Foto de perfil",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

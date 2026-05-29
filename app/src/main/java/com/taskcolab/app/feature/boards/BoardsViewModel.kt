@@ -23,7 +23,8 @@ data class BoardsUiState(
     val error: String? = null,
     val cards: List<TaskCard> = emptyList(),
     val users: List<User> = emptyList(),
-    val activeProject: Project? = null
+    val activeProject: Project? = null,
+    val currentUser: User? = null
 )
 
 @HiltViewModel
@@ -49,9 +50,11 @@ class BoardsViewModel @Inject constructor(
 
             val tasksResult = repository.getBoardTasks()
             val usersResult = repository.getUsers()
+            val currentUserResult = repository.getCurrentUser()
 
             val error = tasksResult.exceptionOrNull()?.message
                 ?: usersResult.exceptionOrNull()?.message
+                ?: currentUserResult.exceptionOrNull()?.message
 
             _uiState.update {
                 it.copy(
@@ -67,7 +70,8 @@ class BoardsViewModel @Inject constructor(
                             role = com.taskcolab.app.domain.model.UserRole.USER,
                             isActive = true
                         )
-                    }
+                    },
+                    currentUser = currentUserResult.getOrNull()
                 )
             }
         }
